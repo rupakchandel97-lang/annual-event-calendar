@@ -13,6 +13,13 @@ class CategoryProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
+  void clear() {
+    _categories = [];
+    _isLoading = false;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
   Future<void> loadCategories(String familyId) async {
     _isLoading = true;
     _errorMessage = null;

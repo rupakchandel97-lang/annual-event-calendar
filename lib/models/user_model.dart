@@ -6,6 +6,7 @@ class User extends Equatable {
   final String email;
   final String displayName;
   final String photoUrl;
+  final String themeId;
   final String role; // 'admin' or 'member'
   final String? familyId;
   final DateTime createdAt;
@@ -16,6 +17,7 @@ class User extends Equatable {
     required this.email,
     required this.displayName,
     this.photoUrl = '',
+    this.themeId = 'current_default',
     this.role = 'member',
     this.familyId,
     required this.createdAt,
@@ -29,6 +31,7 @@ class User extends Equatable {
       email: data['email'] ?? '',
       displayName: data['displayName'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
+      themeId: data['themeId'] ?? 'current_default',
       role: data['role'] ?? 'member',
       familyId: data['familyId'],
       createdAt: data['createdAt']?.toDate() ?? DateTime.now(),
@@ -41,10 +44,11 @@ class User extends Equatable {
       'email': email,
       'displayName': displayName,
       'photoUrl': photoUrl,
+      'themeId': themeId,
       'role': role,
       'familyId': familyId,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
 
@@ -53,6 +57,7 @@ class User extends Equatable {
     String? email,
     String? displayName,
     String? photoUrl,
+    String? themeId,
     String? role,
     String? familyId,
     DateTime? createdAt,
@@ -63,6 +68,7 @@ class User extends Equatable {
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
+      themeId: themeId ?? this.themeId,
       role: role ?? this.role,
       familyId: familyId ?? this.familyId,
       createdAt: createdAt ?? this.createdAt,
@@ -76,6 +82,7 @@ class User extends Equatable {
         email,
         displayName,
         photoUrl,
+        themeId,
         role,
         familyId,
         createdAt,

@@ -6,13 +6,28 @@ import 'providers/auth_provider.dart';
 import 'providers/event_provider.dart';
 import 'providers/category_provider.dart';
 import 'providers/family_provider.dart';
+import 'providers/theme_provider.dart';
 import 'routes/app_router.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
+  // Initialize Firebase, ignoring duplicate-app errors from hot restart
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } on FirebaseException catch (e) {
+    if (e.code != 'duplicate-app') {
+      rethrow;
+    }
+    // Silently ignore duplicate-app in development/hot-restart
+  } catch (e) {
+    // Re-throw any other unexpected errors
+    rethrow;
+  }
+  
   runApp(const FamilyCalendarApp());
 }
 
@@ -24,42 +39,34 @@ class FamilyCalendarApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ThemeProvider>(
+          create: (_) => ThemeProvider(),
+          update: (_, authProvider, themeProvider) {
+            final provider = themeProvider ?? ThemeProvider();
+            provider.syncWithUserTheme(authProvider.currentUser?.themeId);
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => FamilyProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
         ChangeNotifierProvider(create: (_) => EventProvider()),
       ],
-      child: MaterialApp.router(
-        title: 'Family Calendar',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.light,
-          ),
-          fontFamily: 'Poppins',
-          expansionTileTheme: ExpansionTileThemeData(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            filled: true,
-            fillColor: Colors.grey[100],
-          ),
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.blue,
-            brightness: Brightness.dark,
-          ),
-          fontFamily: 'Poppins',
-        ),
-        routerConfig: AppRouter.router,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          return MaterialApp.router(
+            title: 'Family Calendar',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.themeDataFor(themeProvider.themeId),
+            themeMode: ThemeMode.light,
+            builder: (context, child) {
+              return Container(
+                decoration: AppTheme.backgroundDecorationFor(themeProvider.themeId),
+                child: child,
+              );
+            },
+            routerConfig: AppRouter.router,
+          );
+        },
       ),
     );
   }

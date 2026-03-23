@@ -56,6 +56,14 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: '/event/:eventId/edit',
+        name: 'editEvent',
+        builder: (context, state) {
+          final eventId = state.pathParameters['eventId']!;
+          return AddEventScreen(eventId: eventId);
+        },
+      ),
+      GoRoute(
         path: '/event/:eventId',
         name: 'eventDetail',
         builder: (context, state) {

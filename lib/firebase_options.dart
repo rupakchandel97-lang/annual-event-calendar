@@ -15,19 +15,19 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDummyAndroidKeyReplace',
-    appId: '1:123456789:android:dummyappidreplace',
-    messagingSenderId: '123456789',
-    projectId: 'family-calendar-app',
-    storageBucket: 'family-calendar-app.appspot.com',
+    apiKey: 'AIzaSyCX7UCl-yDu8hTOT7DFvKsl2HhXKKcohZk',
+    appId: '1:799894490699:android:a63588311d7bbb2d3187ce',
+    messagingSenderId: '799894490699',
+    projectId: 'family-calendar-684de',
+    storageBucket: 'family-calendar-684de.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyDummyIOSKeyReplace',
     appId: '1:123456789:ios:dummyappidreplace',
     messagingSenderId: '123456789',
-    projectId: 'family-calendar-app',
-    storageBucket: 'family-calendar-app.appspot.com',
+    projectId: 'family-calendar-684de',
+    storageBucket: 'family-calendar-684de.firebasestorage.app',
     iosBundleId: 'com.example.familyCalendar',
   );
 }

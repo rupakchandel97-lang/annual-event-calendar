@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/profile_avatar.dart';
+import '../../widgets/user_app_bar_title.dart';
 
 class FamilyMembersScreen extends StatefulWidget {
   const FamilyMembersScreen({Key? key}) : super(key: key);
@@ -12,6 +16,14 @@ class FamilyMembersScreen extends StatefulWidget {
 
 class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   final _emailController = TextEditingController();
+
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/settings');
+  }
 
   @override
   void dispose() {
@@ -40,18 +52,27 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               final familyId =
                   context.read<FamilyProvider>().currentFamily?.id;
               if (familyId != null) {
-                context.read<FamilyProvider>().inviteMember(
-                      familyId: familyId,
-                      emailToInvite: _emailController.text,
-                    );
-                Navigator.pop(context);
+                final familyProvider = context.read<FamilyProvider>();
+                await familyProvider.inviteMember(
+                  familyId: familyId,
+                  emailToInvite: _emailController.text,
+                );
+
+                if (!context.mounted) {
+                  return;
+                }
+
+                final message = familyProvider.errorMessage ??
+                    'Invite processed. Existing accounts are added right away, and new users can join with this email when they sign up.';
+                if (familyProvider.errorMessage == null) {
+                  Navigator.pop(context);
+                }
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Invitation sent. Feature in beta.')),
+                  SnackBar(content: Text(message)),
                 );
               }
             },
@@ -66,11 +87,17 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Family Members'),
+        toolbarHeight: 72,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _goBack,
+        ),
+        title: const UserAppBarTitle(title: 'Family Members'),
         elevation: 0,
       ),
       body: Consumer2<FamilyProvider, AuthProvider>(
         builder: (context, familyProvider, authProvider, _) {
+          final palette = AppTheme.of(context);
           final currentUser = authProvider.currentUser;
           final isAdmin = currentUser?.role == 'admin';
 
@@ -86,7 +113,7 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.blue[50],
+                    color: palette.surfaceAlt.withOpacity(palette.isDark ? 0.34 : 0.4),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(
@@ -118,13 +145,10 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                     final isCurrentUser = member.uid == currentUser?.uid;
 
                     return ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: member.photoUrl.isNotEmpty
-                            ? NetworkImage(member.photoUrl)
-                            : null,
-                        child: member.photoUrl.isEmpty
-                            ? const Icon(Icons.person)
-                            : null,
+                      leading: ProfileAvatar(
+                        photoUrl: member.photoUrl,
+                        radius: 20,
+                        iconSize: 20,
                       ),
                       title: Text(member.displayName),
                       subtitle: Column(
@@ -139,8 +163,8 @@ class _FamilyMembersScreenState extends State<FamilyMembersScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: member.role == 'admin'
-                                  ? Colors.orange[200]
-                                  : Colors.blue[200],
+                                  ? palette.badgeAdmin
+                                  : palette.badgeMember,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(

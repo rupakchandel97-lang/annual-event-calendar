@@ -1,39 +1,122 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../providers/event_provider.dart';
-import '../../providers/category_provider.dart';
+import 'package:provider/provider.dart';
+import '../../models/event_icon_assets.dart';
+import '../../models/event_model.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/family_provider.dart';
+import '../../providers/category_provider.dart';
+import '../../providers/event_provider.dart';
+import '../../widgets/event_icon_avatar.dart';
+import '../../widgets/user_app_bar_title.dart';
 
 class AddEventScreen extends StatefulWidget {
   final DateTime? initialDate;
+  final String? eventId;
 
-  const AddEventScreen({Key? key, this.initialDate}) : super(key: key);
+  const AddEventScreen({
+    Key? key,
+    this.initialDate,
+    this.eventId,
+  }) : super(key: key);
 
   @override
   State<AddEventScreen> createState() => _AddEventScreenState();
 }
 
 class _AddEventScreenState extends State<AddEventScreen> {
+  static const List<int> _weekdayOrder = <int>[
+    DateTime.monday,
+    DateTime.tuesday,
+    DateTime.wednesday,
+    DateTime.thursday,
+    DateTime.friday,
+    DateTime.saturday,
+    DateTime.sunday,
+  ];
+
   late DateTime _selectedDate;
+  late DateTime _selectedEndDate;
   late DateTime? _startTime;
   late DateTime? _endTime;
   bool _allDay = false;
+  bool _didLoadExistingEvent = false;
+  RecurrenceType _recurrence = RecurrenceType.none;
+  DateTime? _recurrenceEndDate;
+  final Set<int> _selectedWeekdays = <int>{};
 
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
   final _notesController = TextEditingController();
 
   String? _selectedCategoryId;
+  String? _selectedIconAssetPath;
+  late final Future<List<String>> _iconPathsFuture;
+
+  bool get _isEditing => widget.eventId != null;
+
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    if (_isEditing) {
+      context.go('/event/${widget.eventId}');
+      return;
+    }
+
+    context.go('/');
+  }
 
   @override
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
+    _selectedEndDate = _selectedDate;
     _startTime = null;
     _endTime = null;
+    _iconPathsFuture = EventIconAssets.loadPaths();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      final categoryProvider = context.read<CategoryProvider>();
+      final familyId = authProvider.currentUser?.familyId;
+      if (familyId != null && categoryProvider.categories.isEmpty) {
+        categoryProvider.loadCategories(familyId);
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isEditing && !_didLoadExistingEvent) {
+      final existingEvent =
+          context.read<EventProvider>().getEventById(widget.eventId!);
+      if (existingEvent != null) {
+        _loadExistingEvent(existingEvent);
+      }
+      _didLoadExistingEvent = true;
+    }
+  }
+
+  void _loadExistingEvent(CalendarEvent event) {
+    _titleController.text = event.title;
+    _locationController.text = event.location ?? '';
+    _notesController.text = event.notes ?? '';
+    _selectedDate = event.date;
+    _selectedEndDate = event.endDate ?? event.date;
+    _startTime = event.startTime;
+    _endTime = event.endTime;
+    _allDay = event.allDay;
+    _recurrence = event.recurrence;
+    _recurrenceEndDate = event.recurrenceEndDate;
+    _selectedWeekdays
+      ..clear()
+      ..addAll(event.effectiveRecurrenceWeekdays);
+    _selectedCategoryId = event.categoryId;
+    _selectedIconAssetPath = event.iconAssetPath;
   }
 
   @override
@@ -53,7 +136,45 @@ class _AddEventScreenState extends State<AddEventScreen> {
     );
 
     if (pickedDate != null) {
-      setState(() => _selectedDate = pickedDate);
+      setState(() {
+        _selectedDate = pickedDate;
+        if (_selectedEndDate.isBefore(_selectedDate)) {
+          _selectedEndDate = _selectedDate;
+        }
+        if (_startTime != null) {
+          _startTime = DateTime(
+            _selectedDate.year,
+            _selectedDate.month,
+            _selectedDate.day,
+            _startTime!.hour,
+            _startTime!.minute,
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _selectEndDate() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedEndDate,
+      firstDate: _selectedDate,
+      lastDate: DateTime(2030),
+    );
+
+    if (pickedDate != null) {
+      setState(() {
+        _selectedEndDate = pickedDate;
+        if (_endTime != null) {
+          _endTime = DateTime(
+            _selectedEndDate.year,
+            _selectedEndDate.month,
+            _selectedEndDate.day,
+            _endTime!.hour,
+            _endTime!.minute,
+          );
+        }
+      });
     }
   }
 
@@ -64,11 +185,11 @@ class _AddEventScreenState extends State<AddEventScreen> {
     );
 
     if (pickedTime != null) {
-      final now = DateTime.now();
+      final targetDate = isStartTime ? _selectedDate : _selectedEndDate;
       final dateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
         pickedTime.hour,
         pickedTime.minute,
       );
@@ -83,7 +204,156 @@ class _AddEventScreenState extends State<AddEventScreen> {
     }
   }
 
-  void _saveEvent() {
+  Future<void> _showIconPicker() async {
+    final iconPaths = await _iconPathsFuture;
+    if (!mounted) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Choose Event Icon',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.82,
+                    ),
+                    itemCount: iconPaths.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        final isSelected = _selectedIconAssetPath == null;
+                        return _IconChoiceTile(
+                          label: 'None',
+                          isSelected: isSelected,
+                          onTap: () {
+                            setState(() => _selectedIconAssetPath = null);
+                            sheetContext.pop();
+                          },
+                          child: const Icon(Icons.block_outlined),
+                        );
+                      }
+
+                      final assetPath = iconPaths[index - 1];
+                      final isSelected = assetPath == _selectedIconAssetPath;
+                      return _IconChoiceTile(
+                        label: EventIconAssets.labelFor(assetPath),
+                        isSelected: isSelected,
+                        onTap: () {
+                          setState(() => _selectedIconAssetPath = assetPath);
+                          sheetContext.pop();
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Image.asset(assetPath, fit: BoxFit.contain),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _selectRecurrenceEndDate() async {
+    final initialDate = _recurrenceEndDate ?? _selectedDate;
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate.isBefore(_selectedDate) ? _selectedDate : initialDate,
+      firstDate: _selectedDate,
+      lastDate: DateTime(2035),
+    );
+
+    if (pickedDate != null) {
+      setState(() => _recurrenceEndDate = pickedDate);
+    }
+  }
+
+  void _handleRecurrenceChanged(RecurrenceType? value) {
+    if (value == null) {
+      return;
+    }
+
+    setState(() {
+      _recurrence = value;
+      if (_recurrence != RecurrenceType.weekly) {
+        _selectedWeekdays.clear();
+      } else if (_selectedWeekdays.isEmpty) {
+        _selectedWeekdays.add(_selectedDate.weekday);
+      }
+
+      if (_recurrence == RecurrenceType.none) {
+        _recurrenceEndDate = null;
+      }
+    });
+  }
+
+  void _toggleWeekday(int weekday) {
+    setState(() {
+      if (_selectedWeekdays.contains(weekday)) {
+        if (_selectedWeekdays.length > 1) {
+          _selectedWeekdays.remove(weekday);
+        }
+      } else {
+        _selectedWeekdays.add(weekday);
+      }
+    });
+  }
+
+  String _recurrenceLabel(RecurrenceType value) {
+    switch (value) {
+      case RecurrenceType.none:
+        return 'Does not repeat';
+      case RecurrenceType.daily:
+        return 'Daily';
+      case RecurrenceType.weekly:
+        return 'Weekly';
+      case RecurrenceType.monthly:
+        return 'Monthly';
+      case RecurrenceType.yearly:
+        return 'Yearly';
+    }
+  }
+
+  String _weekdayShortLabel(int weekday) {
+    const labels = <int, String>{
+      DateTime.monday: 'Mon',
+      DateTime.tuesday: 'Tue',
+      DateTime.wednesday: 'Wed',
+      DateTime.thursday: 'Thu',
+      DateTime.friday: 'Fri',
+      DateTime.saturday: 'Sat',
+      DateTime.sunday: 'Sun',
+    };
+
+    return labels[weekday] ?? '';
+  }
+
+  Future<void> _saveEvent() async {
     if (_titleController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter event title')),
@@ -98,40 +368,139 @@ class _AddEventScreenState extends State<AddEventScreen> {
       return;
     }
 
+    if (_selectedEndDate.isBefore(_selectedDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End date cannot be before start date')),
+      );
+      return;
+    }
+
+    if (!_allDay &&
+        _startTime != null &&
+        _endTime != null &&
+        !_endTime!.isAfter(_startTime!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be after start time')),
+      );
+      return;
+    }
+
+    if (_recurrence != RecurrenceType.none &&
+        _recurrenceEndDate != null &&
+        _recurrenceEndDate!.isBefore(_selectedDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Recurrence end date cannot be before the event date'),
+        ),
+      );
+      return;
+    }
+
+    if (_recurrence == RecurrenceType.weekly && _selectedWeekdays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select at least one weekday for weekly recurrence'),
+        ),
+      );
+      return;
+    }
+
     final authProvider = context.read<AuthProvider>();
-    final familyProvider = context.read<FamilyProvider>();
     final eventProvider = context.read<EventProvider>();
-
     final familyId = authProvider.currentUser?.familyId;
-    if (familyId == null) return;
+    if (familyId == null) {
+      return;
+    }
 
-    eventProvider.addEvent(
+    if (_isEditing) {
+      await eventProvider.updateEvent(
+        eventId: widget.eventId!,
+        title: _titleController.text.trim(),
+        date: _selectedDate,
+        endDate: _selectedEndDate,
+        categoryId: _selectedCategoryId!,
+        location: _locationController.text.trim().isNotEmpty
+            ? _locationController.text.trim()
+            : null,
+        notes: _notesController.text.trim().isNotEmpty
+            ? _notesController.text.trim()
+            : null,
+        startTime: _allDay ? null : _startTime,
+        endTime: _allDay ? null : _endTime,
+        recurrence: _recurrence,
+        recurrenceEndDate: _recurrenceEndDate,
+        recurrenceWeekdays: _recurrence == RecurrenceType.weekly
+            ? (_selectedWeekdays.toList()..sort())
+            : const [],
+        allDay: _allDay,
+        iconAssetPath: _selectedIconAssetPath,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Event updated successfully')),
+      );
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/event/${widget.eventId}');
+      }
+      return;
+    }
+
+    await eventProvider.addEvent(
       familyId: familyId,
-      title: _titleController.text,
+      title: _titleController.text.trim(),
       date: _selectedDate,
+      endDate: _selectedEndDate,
       categoryId: _selectedCategoryId!,
       createdBy: authProvider.currentUser!.uid,
-      location: _locationController.text.isNotEmpty
-          ? _locationController.text
+      location: _locationController.text.trim().isNotEmpty
+          ? _locationController.text.trim()
           : null,
-      notes: _notesController.text.isNotEmpty ? _notesController.text : null,
+      notes: _notesController.text.trim().isNotEmpty
+          ? _notesController.text.trim()
+          : null,
       startTime: _allDay ? null : _startTime,
       endTime: _allDay ? null : _endTime,
+      recurrence: _recurrence,
+      recurrenceEndDate: _recurrenceEndDate,
+      recurrenceWeekdays: _recurrence == RecurrenceType.weekly
+          ? (_selectedWeekdays.toList()..sort())
+          : const [],
       allDay: _allDay,
+      iconAssetPath: _selectedIconAssetPath,
     );
+
+    if (!mounted) {
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Event added successfully')),
     );
-
     context.go('/');
   }
 
   @override
   Widget build(BuildContext context) {
+    final categoryColor = context
+            .read<CategoryProvider>()
+            .getCategoryById(_selectedCategoryId ?? '')
+            ?.color ??
+        Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Event'),
+        toolbarHeight: 72,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: _goBack,
+        ),
+        title: UserAppBarTitle(title: _isEditing ? 'Edit Event' : 'Add Event'),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -166,8 +535,35 @@ class _AddEventScreenState extends State<AddEventScreen> {
                         children: [
                           const Icon(Icons.calendar_today_outlined),
                           const SizedBox(width: 8),
-                          Text(
-                            DateFormat('MMM d, yyyy').format(_selectedDate),
+                          Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _selectEndDate,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.grey[100],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_repeat_outlined),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              DateFormat('MMM d, yyyy').format(_selectedEndDate),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
@@ -177,6 +573,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
               ],
             ),
             const SizedBox(height: 16),
+            if (_selectedEndDate.isAfter(_selectedDate))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(
+                  'Spans ${_selectedEndDate.difference(_selectedDate).inDays + 1} days',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
             SwitchListTile(
               title: const Text('All Day'),
               value: _allDay,
@@ -203,9 +609,11 @@ class _AddEventScreenState extends State<AddEventScreen> {
                           children: [
                             const Icon(Icons.access_time_outlined),
                             const SizedBox(width: 8),
-                            Text(_startTime != null
-                                ? DateFormat('HH:mm').format(_startTime!)
-                                : 'Start Time'),
+                            Text(
+                              _startTime != null
+                                  ? DateFormat('HH:mm').format(_startTime!)
+                                  : 'Start Time',
+                            ),
                           ],
                         ),
                       ),
@@ -229,15 +637,94 @@ class _AddEventScreenState extends State<AddEventScreen> {
                           children: [
                             const Icon(Icons.access_time_outlined),
                             const SizedBox(width: 8),
-                            Text(_endTime != null
-                                ? DateFormat('HH:mm').format(_endTime!)
-                                : 'End Time'),
+                            Text(
+                              _endTime != null
+                                  ? DateFormat('HH:mm').format(_endTime!)
+                                  : 'End Time',
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
                 ],
+              ),
+            ],
+            const SizedBox(height: 16),
+            DropdownButtonFormField<RecurrenceType>(
+              value: _recurrence,
+              decoration: const InputDecoration(
+                hintText: 'Repeat',
+                prefixIcon: Icon(Icons.repeat),
+              ),
+              items: RecurrenceType.values
+                  .map(
+                    (value) => DropdownMenuItem(
+                      value: value,
+                      child: Text(_recurrenceLabel(value)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: _handleRecurrenceChanged,
+            ),
+            if (_recurrence == RecurrenceType.weekly) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Repeat on',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _weekdayOrder.map((weekday) {
+                  final isSelected = _selectedWeekdays.contains(weekday);
+                  return FilterChip(
+                    label: Text(_weekdayShortLabel(weekday)),
+                    selected: isSelected,
+                    onSelected: (_) => _toggleWeekday(weekday),
+                  );
+                }).toList(),
+              ),
+            ],
+            if (_recurrence != RecurrenceType.none) ...[
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _selectRecurrenceEndDate,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[100],
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event_available_outlined),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _recurrenceEndDate == null
+                              ? 'No recurrence end date'
+                              : 'Repeat until ${DateFormat('MMM d, yyyy').format(_recurrenceEndDate!)}',
+                        ),
+                      ),
+                      if (_recurrenceEndDate != null)
+                        IconButton(
+                          tooltip: 'Clear recurrence end date',
+                          onPressed: () => setState(() => _recurrenceEndDate = null),
+                          icon: const Icon(Icons.close),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ],
             const SizedBox(height: 16),
@@ -254,23 +741,75 @@ class _AddEventScreenState extends State<AddEventScreen> {
                     prefixIcon: Icon(Icons.category_outlined),
                   ),
                   items: categoryProvider.categories
-                      .map((category) => DropdownMenuItem(
-                            value: category.id,
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: category.color,
-                                  radius: 8,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(category.name),
-                              ],
-                            ),
-                          ))
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category.id,
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: category.color,
+                                radius: 8,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(category.name),
+                            ],
+                          ),
+                        ),
+                      )
                       .toList(),
                   onChanged: (value) => setState(() => _selectedCategoryId = value),
                 );
               },
+            ),
+            const SizedBox(height: 16),
+            InkWell(
+              onTap: _showIconPicker,
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  children: [
+                    EventIconAvatar(
+                      assetPath: _selectedIconAssetPath,
+                      backgroundColor: categoryColor,
+                      radius: 24,
+                      iconSize: 24,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Event Icon',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _selectedIconAssetPath == null
+                                ? 'Choose a small icon from your event icon library'
+                                : EventIconAssets.labelFor(
+                                    _selectedIconAssetPath!,
+                                  ),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.arrow_forward_ios, size: 16),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -294,7 +833,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => context.pop(),
+                    onPressed: _goBack,
                     child: const Text('Cancel'),
                   ),
                 ),
@@ -302,10 +841,63 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _saveEvent,
-                    child: const Text('Save Event'),
+                    child: Text(_isEditing ? 'Save Changes' : 'Save Event'),
                   ),
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IconChoiceTile extends StatelessWidget {
+  final Widget child;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _IconChoiceTile({
+    required this.child,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary.withOpacity(0.14)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(child: Center(child: child)),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
             ),
           ],
         ),
