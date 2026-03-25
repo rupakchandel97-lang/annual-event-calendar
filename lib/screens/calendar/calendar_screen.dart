@@ -19,6 +19,9 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   static final DateTime _calendarFirstDay = DateTime(2019, 12, 29);
   static final DateTime _calendarLastDay = DateTime(2030, 12, 31);
+  static const int _maxVisibleDayMarkers = 2;
+  static const double _dayMarkerDiameter = 24;
+  static const double _dayOverflowBadgeWidth = 20;
 
   late DateTime _focusedDay;
   late DateTime _selectedDay;
@@ -90,61 +93,91 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               }
 
                               final dayEvents = events.cast<CalendarEvent>();
-                              final visibleEvents = dayEvents.take(2).toList();
+                              final hasOverflow =
+                                  dayEvents.length > _maxVisibleDayMarkers;
+                              final visibleMarkerCount =
+                                  hasOverflow ? 1 : _maxVisibleDayMarkers;
+                              final visibleEvents = dayEvents
+                                  .take(visibleMarkerCount)
+                                  .toList();
                               final remainingCount =
                                   dayEvents.length - visibleEvents.length;
                               return Align(
                                 alignment: Alignment.bottomCenter,
                                 child: Padding(
                                   padding: const EdgeInsets.only(bottom: 4),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      for (final event in visibleEvents)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 2,
-                                          ),
-                                          child: _buildCalendarMarker(
-                                            context: context,
-                                            categoryProvider: categoryProvider,
-                                            event: event,
-                                          ),
-                                        ),
-                                      if (remainingCount > 0)
-                                        Container(
-                                          width: 22,
-                                          height: 22,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .surface,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .outline,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '+$remainingCount',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelSmall
-                                                ?.copyWith(
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w700,
+                                  child: ClipRect(
+                                    child: SizedBox(
+                                      height: _dayMarkerDiameter,
+                                      width: double.infinity,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.center,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            for (final event in visibleEvents)
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 1,
                                                 ),
-                                          ),
+                                                child: _buildCalendarMarker(
+                                                  context: context,
+                                                  categoryProvider:
+                                                      categoryProvider,
+                                                  event: event,
+                                                ),
+                                              ),
+                                            if (remainingCount > 0)
+                                              Container(
+                                                width: _dayOverflowBadgeWidth,
+                                                height: _dayOverflowBadgeWidth,
+                                                alignment: Alignment.center,
+                                                decoration: BoxDecoration(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .surface,
+                                                  borderRadius:
+                                                      BorderRadius.circular(999),
+                                                  border: Border.all(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .outline,
+                                                  ),
+                                                ),
+                                                child: FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                      horizontal: 2,
+                                                    ),
+                                                    child: Text(
+                                                      '+$remainingCount',
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .labelSmall
+                                                          ?.copyWith(
+                                                            fontSize: 9,
+                                                            fontWeight:
+                                                                FontWeight.w700,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                    ],
+                                      ),
+                                    ),
                                   ),
                                 ),
                               );
                             },
                           ),
                           calendarStyle: CalendarStyle(
+                            canMarkersOverflow: false,
                             todayDecoration: BoxDecoration(
                               color: Theme.of(context)
                                   .colorScheme
@@ -253,8 +286,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     if (event.iconAssetPath != null && event.iconAssetPath!.isNotEmpty) {
       return Container(
-        width: 22,
-        height: 22,
+        width: _dayMarkerDiameter,
+        height: _dayMarkerDiameter,
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.98),
           shape: BoxShape.circle,
@@ -268,7 +301,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(3),
+          padding: const EdgeInsets.all(2),
           child: Image.asset(
             event.iconAssetPath!,
             fit: BoxFit.contain,
@@ -278,8 +311,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
 
     return Container(
-      width: 10,
-      height: 10,
+      width: 12,
+      height: 12,
       decoration: BoxDecoration(
         color: markerColor,
         shape: BoxShape.circle,

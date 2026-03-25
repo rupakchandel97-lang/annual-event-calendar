@@ -73,10 +73,62 @@ class AppThemePalette extends ThemeExtension<AppThemePalette> {
           ? Colors.white
           : Colors.black;
 
+  Color get vibrantBackground => AppTheme._blend(
+        background,
+        AppTheme._blend(primary, accent, isDark ? 0.35 : 0.24),
+        isDark ? 0.14 : 0.08,
+      );
+
+  Color get vibrantSurface => AppTheme._blend(
+        surface,
+        AppTheme._blend(primary, accent, 0.5),
+        isDark ? 0.18 : 0.09,
+      );
+
+  Color get vibrantSurfaceAlt => AppTheme._blend(
+        surfaceAlt,
+        AppTheme._blend(secondary, accent, 0.45),
+        isDark ? 0.22 : 0.12,
+      );
+
+  Color get vibrantOutline => AppTheme._blend(
+        outline,
+        primary,
+        isDark ? 0.28 : 0.16,
+      );
+
+  Color get vibrantNavBackground => AppTheme._blend(
+        navBackground,
+        AppTheme._blend(primary, secondary, 0.45),
+        isDark ? 0.18 : 0.22,
+      );
+
+  Color get vibrantNavIndicator => AppTheme._blend(
+        navIndicator,
+        accent,
+        isDark ? 0.22 : 0.3,
+      );
+
+  Color get navSelectedContentColor =>
+      AppTheme._foregroundFor(vibrantNavIndicator);
+
+  Color get navUnselectedContentColor =>
+      AppTheme._bestContrastingColor(vibrantNavBackground).withOpacity(
+        isDark ? 0.9 : 0.92,
+      );
+
   LinearGradient get pageGradient => LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: gradientColors,
+        colors: [
+          AppTheme._blend(gradientColors[0], primary, isDark ? 0.1 : 0.06),
+          AppTheme._blend(
+            gradientColors[1],
+            AppTheme._blend(primary, accent, 0.45),
+            isDark ? 0.14 : 0.1,
+          ),
+          AppTheme._blend(gradientColors[2], accent, isDark ? 0.18 : 0.12),
+        ],
         stops: const [0.0, 0.5, 1.0],
       );
 
@@ -179,6 +231,7 @@ class AppThemePalette extends ThemeExtension<AppThemePalette> {
 
 class AppTheme {
   static const String defaultThemeId = 'current_default';
+  static const String guestThemeId = 'theme_5_modern_professional';
 
   static final List<AppThemePalette> themes = [
     const AppThemePalette(
@@ -315,40 +368,6 @@ class AppTheme {
       logoGradientColors: [
         Color(0xFF8F917C),
         Color(0xFFBAC8E0),
-      ],
-    ),
-    const AppThemePalette(
-      id: 'theme_4_mobile_app_color_themes',
-      heading: 'THEME 4 - MOBILE APP COLOR THEMES',
-      name: 'Minimalist Premium',
-      description: 'Clean monochrome styling inspired by premium hardware apps.',
-      brightness: Brightness.light,
-      primary: Color(0xFF000000),
-      secondary: Color(0xFF8E8E93),
-      accent: Color(0xFFFFFFFF),
-      background: Color(0xFFF2F2F5),
-      surface: Color(0xFFFFFFFF),
-      surfaceAlt: Color(0xFFE5E5EA),
-      textPrimary: Color(0xFF000000),
-      textMuted: Color(0xFF6C6C70),
-      outline: Color(0xFFD1D1D6),
-      navBackground: Color(0xFFFFFFFF),
-      navIndicator: Color(0xFF000000),
-      heroOverlayStart: Color(0x05000000),
-      heroOverlayEnd: Color(0x30000000),
-      chipBackground: Color(0x14000000),
-      badgeAdmin: Color(0xFFE5E5EA),
-      badgeMember: Color(0xFFD7D7DC),
-      success: Color(0xFF2E7D32),
-      error: Color(0xFFC62828),
-      gradientColors: [
-        Color(0xFFFFFFFF),
-        Color(0xFFF2F2F5),
-        Color(0xFFE5E5EA),
-      ],
-      logoGradientColors: [
-        Color(0xFF000000),
-        Color(0xFF8E8E93),
       ],
     ),
     const AppThemePalette(
@@ -533,6 +552,12 @@ class AppTheme {
 
   static ThemeData themeDataFor(String? id) {
     final palette = paletteFor(id);
+    final backgroundColor = palette.vibrantBackground;
+    final surfaceColor = palette.vibrantSurface;
+    final surfaceAltColor = palette.vibrantSurfaceAlt;
+    final outlineColor = palette.vibrantOutline;
+    final navBackgroundColor = palette.vibrantNavBackground;
+    final navIndicatorColor = palette.vibrantNavIndicator;
     final colorScheme = ColorScheme(
       brightness: palette.brightness,
       primary: palette.primary,
@@ -541,17 +566,17 @@ class AppTheme {
       onSecondary: palette.onSecondary,
       error: palette.error,
       onError: palette.isDark ? Colors.black : Colors.white,
-      background: palette.background,
+      background: backgroundColor,
       onBackground: palette.textPrimary,
-      surface: palette.surface,
+      surface: surfaceColor,
       onSurface: palette.textPrimary,
-      surfaceTint: palette.surfaceAlt,
-      outline: palette.outline,
-      outlineVariant: palette.outline.withOpacity(0.7),
+      surfaceTint: surfaceAltColor,
+      outline: outlineColor,
+      outlineVariant: outlineColor.withOpacity(0.7),
       shadow: palette.isDark ? Colors.black54 : const Color(0x22000000),
       scrim: const Color(0x66000000),
       inverseSurface: palette.textPrimary,
-      onInverseSurface: palette.background,
+      onInverseSurface: backgroundColor,
       inversePrimary: palette.accent,
     );
 
@@ -569,22 +594,22 @@ class AppTheme {
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: palette.surface,
-        surfaceTintColor: palette.surface,
+        color: surfaceColor,
+        surfaceTintColor: surfaceColor,
         elevation: palette.isDark ? 0 : 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: palette.outline.withOpacity(0.75)),
+          side: BorderSide(color: outlineColor.withOpacity(0.75)),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: palette.navBackground,
-        indicatorColor: palette.navIndicator,
+        backgroundColor: navBackgroundColor,
+        indicatorColor: navIndicatorColor,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final isSelected = states.contains(WidgetState.selected);
           final color = isSelected
-              ? _foregroundFor(palette.navIndicator)
-              : _mutedForegroundFor(palette.navBackground);
+              ? palette.navSelectedContentColor
+              : palette.navUnselectedContentColor;
           return IconThemeData(
             color: color,
             size: isSelected ? 26 : 24,
@@ -595,14 +620,14 @@ class AppTheme {
           return TextStyle(
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected
-                ? _foregroundFor(palette.navIndicator)
-                : _mutedForegroundFor(palette.navBackground),
+                ? palette.navSelectedContentColor
+                : palette.navUnselectedContentColor,
           );
         }),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         elevation: 8,
         height: 72,
-        surfaceTintColor: palette.navBackground,
+        surfaceTintColor: navBackgroundColor,
         shadowColor: palette.isDark ? Colors.black54 : const Color(0x26000000),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -641,7 +666,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: palette.surfaceAlt.withOpacity(palette.isDark ? 0.45 : 0.42),
+        fillColor: surfaceAltColor.withOpacity(palette.isDark ? 0.52 : 0.56),
         hintStyle: TextStyle(color: palette.textMuted),
         prefixIconColor: palette.secondary,
         suffixIconColor: palette.secondary,
@@ -652,7 +677,7 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(22),
-          borderSide: BorderSide(color: palette.outline),
+          borderSide: BorderSide(color: outlineColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(22),
@@ -672,7 +697,7 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
       ),
       dividerTheme: DividerThemeData(
-        color: palette.outline.withOpacity(0.7),
+        color: outlineColor.withOpacity(0.7),
       ),
       expansionTileTheme: ExpansionTileThemeData(
         shape: RoundedRectangleBorder(
@@ -710,5 +735,26 @@ class AppTheme {
 
   static Color _mutedForegroundFor(Color background) {
     return _foregroundFor(background).withOpacity(0.84);
+  }
+
+  static Color _blend(Color base, Color overlay, double amount) {
+    final overlayOpacity = amount.clamp(0.0, 1.0);
+    return Color.alphaBlend(overlay.withOpacity(overlayOpacity), base);
+  }
+
+  static Color _bestContrastingColor(Color background) {
+    const white = Colors.white;
+    const black = Colors.black;
+    final whiteContrast = _contrastRatio(background, white);
+    final blackContrast = _contrastRatio(background, black);
+    return whiteContrast >= blackContrast ? white : black;
+  }
+
+  static double _contrastRatio(Color a, Color b) {
+    final l1 = a.computeLuminance();
+    final l2 = b.computeLuminance();
+    final lighter = l1 > l2 ? l1 : l2;
+    final darker = l1 > l2 ? l2 : l1;
+    return (lighter + 0.05) / (darker + 0.05);
   }
 }

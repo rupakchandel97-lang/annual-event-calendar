@@ -7,6 +7,7 @@ import '../../models/event_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/event_provider.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/event_icon_avatar.dart';
 import '../../widgets/user_app_bar_title.dart';
 
@@ -487,6 +488,20 @@ class _AddEventScreenState extends State<AddEventScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppTheme.of(context);
+    final pickerFillColor = palette.vibrantSurfaceAlt.withOpacity(
+      palette.isDark ? 0.54 : 0.72,
+    );
+    final pickerBorderColor = palette.vibrantOutline.withOpacity(0.92);
+    final pickerIconColor = palette.secondary;
+    final pickerTextStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        );
+    final pickerHintStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textMuted,
+          fontWeight: FontWeight.w500,
+        );
     final categoryColor = context
             .read<CategoryProvider>()
             .getCategoryById(_selectedCategoryId ?? '')
@@ -527,15 +542,21 @@ class _AddEventScreenState extends State<AddEventScreen> {
                         vertical: 16,
                       ),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
+                        border: Border.all(color: pickerBorderColor),
                         borderRadius: BorderRadius.circular(8),
-                        color: Colors.grey[100],
+                        color: pickerFillColor,
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.calendar_today_outlined),
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            color: pickerIconColor,
+                          ),
                           const SizedBox(width: 8),
-                          Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
+                          Text(
+                            DateFormat('MMM d, yyyy').format(_selectedDate),
+                            style: pickerTextStyle,
+                          ),
                         ],
                       ),
                     ),
@@ -551,18 +572,22 @@ class _AddEventScreenState extends State<AddEventScreen> {
                         vertical: 16,
                       ),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
+                        border: Border.all(color: pickerBorderColor),
                         borderRadius: BorderRadius.circular(8),
-                        color: Colors.grey[100],
+                        color: pickerFillColor,
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.event_repeat_outlined),
+                          Icon(
+                            Icons.event_repeat_outlined,
+                            color: pickerIconColor,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               DateFormat('MMM d, yyyy').format(_selectedEndDate),
                               overflow: TextOverflow.ellipsis,
+                              style: pickerTextStyle,
                             ),
                           ),
                         ],
@@ -601,18 +626,24 @@ class _AddEventScreenState extends State<AddEventScreen> {
                           vertical: 16,
                         ),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
+                          border: Border.all(color: pickerBorderColor),
                           borderRadius: BorderRadius.circular(8),
-                          color: Colors.grey[100],
+                          color: pickerFillColor,
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time_outlined),
+                            Icon(
+                              Icons.access_time_outlined,
+                              color: pickerIconColor,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               _startTime != null
                                   ? DateFormat('HH:mm').format(_startTime!)
                                   : 'Start Time',
+                              style: _startTime != null
+                                  ? pickerTextStyle
+                                  : pickerHintStyle,
                             ),
                           ],
                         ),
@@ -629,18 +660,24 @@ class _AddEventScreenState extends State<AddEventScreen> {
                           vertical: 16,
                         ),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey[300]!),
+                          border: Border.all(color: pickerBorderColor),
                           borderRadius: BorderRadius.circular(8),
-                          color: Colors.grey[100],
+                          color: pickerFillColor,
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.access_time_outlined),
+                            Icon(
+                              Icons.access_time_outlined,
+                              color: pickerIconColor,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               _endTime != null
                                   ? DateFormat('HH:mm').format(_endTime!)
                                   : 'End Time',
+                              style: _endTime != null
+                                  ? pickerTextStyle
+                                  : pickerHintStyle,
                             ),
                           ],
                         ),
@@ -684,6 +721,21 @@ class _AddEventScreenState extends State<AddEventScreen> {
                   return FilterChip(
                     label: Text(_weekdayShortLabel(weekday)),
                     selected: isSelected,
+                    selectedColor: palette.primary.withOpacity(
+                      palette.isDark ? 0.34 : 0.2,
+                    ),
+                    backgroundColor: palette.vibrantSurface,
+                    side: BorderSide(
+                      color: isSelected ? palette.primary : pickerBorderColor,
+                    ),
+                    checkmarkColor: palette.primary,
+                    labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: isSelected
+                              ? palette.textPrimary
+                              : palette.textPrimary,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                        ),
                     onSelected: (_) => _toggleWeekday(weekday),
                   );
                 }).toList(),
@@ -701,19 +753,25 @@ class _AddEventScreenState extends State<AddEventScreen> {
                     vertical: 16,
                   ),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
+                    border: Border.all(color: pickerBorderColor),
                     borderRadius: BorderRadius.circular(8),
-                    color: Colors.grey[100],
+                    color: pickerFillColor,
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.event_available_outlined),
+                      Icon(
+                        Icons.event_available_outlined,
+                        color: pickerIconColor,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _recurrenceEndDate == null
                               ? 'No recurrence end date'
                               : 'Repeat until ${DateFormat('MMM d, yyyy').format(_recurrenceEndDate!)}',
+                          style: _recurrenceEndDate == null
+                              ? pickerHintStyle
+                              : pickerTextStyle,
                         ),
                       ),
                       if (_recurrenceEndDate != null)
@@ -769,9 +827,11 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.85),
+                  color: palette.vibrantSurface.withOpacity(
+                    palette.isDark ? 0.92 : 0.9,
+                  ),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: pickerBorderColor),
                 ),
                 child: Row(
                   children: [
@@ -876,12 +936,12 @@ class _IconChoiceTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected
               ? Theme.of(context).colorScheme.primary.withOpacity(0.14)
-              : Colors.white,
+              : AppTheme.of(context).vibrantSurface,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isSelected
                 ? Theme.of(context).colorScheme.primary
-                : Colors.grey.shade300,
+                : AppTheme.of(context).vibrantOutline.withOpacity(0.9),
             width: isSelected ? 2 : 1,
           ),
         ),

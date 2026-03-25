@@ -6,14 +6,11 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart' as app_user;
-import '../firebase_options.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instanceFor(
-    bucket: 'gs://${DefaultFirebaseOptions.currentPlatform.storageBucket}',
-  );
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   app_user.User? _currentUser;
   bool _isLoading = false;
@@ -49,7 +46,9 @@ class AuthProvider extends ChangeNotifier {
       print('DEBUG: Firestore doc exists: ${doc?.exists ?? false}');
 
       if (doc != null && doc.exists) {
-        _currentUser = app_user.User.fromFirestore(doc);
+        _currentUser = await _resolveProfilePhotoUrl(
+          app_user.User.fromFirestore(doc),
+        );
         print('DEBUG: User loaded successfully: ${_currentUser?.email}');
       } else {
         print('DEBUG: User document does not exist in Firestore. Creating a fallback profile.');
@@ -69,7 +68,7 @@ class AuthProvider extends ChangeNotifier {
             .collection('users')
             .doc(firebaseUser.uid)
             .set(fallbackUser.toFirestore(), SetOptions(merge: true));
-        _currentUser = fallbackUser;
+        _currentUser = await _resolveProfilePhotoUrl(fallbackUser);
       }
       notifyListeners();
     } catch (e) {
@@ -657,6 +656,38 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<app_user.User> _resolveProfilePhotoUrl(app_user.User user) async {
+    final trimmedUrl = user.photoUrl.trim();
+    if (trimmedUrl.isEmpty) {
+      return user;
+    }
+
+    final uri = Uri.tryParse(trimmedUrl);
+    final isHttpUrl = uri != null &&
+        uri.hasScheme &&
+        (uri.scheme == 'http' || uri.scheme == 'https');
+    if (isHttpUrl) {
+      return user;
+    }
+
+    if (!trimmedUrl.startsWith('gs://')) {
+      return user.copyWith(photoUrl: '');
+    }
+
+    try {
+      final downloadUrl = await _storage.refFromURL(trimmedUrl).getDownloadURL();
+      await _firestore.collection('users').doc(user.uid).update({
+        'photoUrl': downloadUrl,
+        'updatedAt': Timestamp.now(),
+      });
+      await _auth.currentUser?.updatePhotoURL(downloadUrl);
+      return user.copyWith(photoUrl: downloadUrl);
+    } catch (e) {
+      print('DEBUG: Unable to resolve gs:// profile URL for ${user.uid}: $e');
+      return user.copyWith(photoUrl: '');
+    }
+  }
+
   Future<void> uploadProfilePhoto(File imageFile) async {
     if (_currentUser == null) return;
 
@@ -709,7 +740,6 @@ class AuthProvider extends ChangeNotifier {
 
     for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        await storageRef.getMetadata();
         return await storageRef.getDownloadURL();
       } on FirebaseException catch (e) {
         lastError = e;

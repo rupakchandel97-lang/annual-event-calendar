@@ -214,6 +214,13 @@ class CalendarEvent extends Equatable {
       return false;
     }
 
+    // Weekly recurrence with explicitly selected weekdays should only appear
+    // on those weekdays, rather than bleeding across adjacent days.
+    if (recurrence == RecurrenceType.weekly &&
+        effectiveRecurrenceWeekdays.length > 1) {
+      return _isOccurrenceStartOn(day);
+    }
+
     for (var offset = 0; offset <= durationInDays; offset++) {
       final candidateStart = day.subtract(Duration(days: offset));
       if (_isOccurrenceStartOn(candidateStart)) {
