@@ -52,6 +52,9 @@ class AppRouter {
           final extra = state.extra as Map<String, dynamic>?;
           return AddEventScreen(
             initialDate: extra?['date'] as DateTime?,
+            initialTitle: extra?['title'] as String?,
+            initialNotes: extra?['notes'] as String?,
+            preferredCategoryName: extra?['preferredCategoryName'] as String?,
           );
         },
       ),

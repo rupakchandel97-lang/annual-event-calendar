@@ -626,6 +626,7 @@ class AuthProvider extends ChangeNotifier {
     String? displayName,
     String? photoUrl,
     String? themeId,
+    String? languageCode,
   }) async {
     if (_currentUser == null) return false;
 
@@ -634,6 +635,7 @@ class AuthProvider extends ChangeNotifier {
       if (displayName != null) updates['displayName'] = displayName;
       if (photoUrl != null) updates['photoUrl'] = photoUrl;
       if (themeId != null) updates['themeId'] = themeId;
+      if (languageCode != null) updates['languageCode'] = languageCode;
       updates['updatedAt'] = Timestamp.now();
 
       await _firestore
@@ -645,6 +647,7 @@ class AuthProvider extends ChangeNotifier {
         displayName: displayName ?? _currentUser!.displayName,
         photoUrl: photoUrl ?? _currentUser!.photoUrl,
         themeId: themeId ?? _currentUser!.themeId,
+        languageCode: languageCode ?? _currentUser!.languageCode,
       );
       _errorMessage = null;
       notifyListeners();
@@ -670,6 +673,10 @@ class AuthProvider extends ChangeNotifier {
       return user;
     }
 
+    if (trimmedUrl.startsWith('img/')) {
+      return user;
+    }
+
     if (!trimmedUrl.startsWith('gs://')) {
       return user.copyWith(photoUrl: '');
     }
@@ -688,8 +695,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> uploadProfilePhoto(File imageFile) async {
-    if (_currentUser == null) return;
+  Future<bool> uploadProfilePhoto(File imageFile) async {
+    if (_currentUser == null) return false;
 
     _isLoading = true;
     _errorMessage = null;
@@ -720,6 +727,7 @@ class AuthProvider extends ChangeNotifier {
       await updateProfile(photoUrl: photoUrl);
       await _auth.currentUser?.updatePhotoURL(photoUrl);
       _errorMessage = null;
+      return true;
     } on FirebaseException catch (e) {
       _errorMessage = e.message ?? e.toString();
       notifyListeners();
@@ -730,6 +738,16 @@ class AuthProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+    return false;
+  }
+
+  Future<bool> setBundledProfilePhoto(String assetPath) async {
+    if (_currentUser == null) {
+      return false;
+    }
+
+    final didUpdate = await updateProfile(photoUrl: assetPath);
+    return didUpdate;
   }
 
   Future<String> _getDownloadUrlWithRetry(

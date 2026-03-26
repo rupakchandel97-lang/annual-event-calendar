@@ -55,6 +55,14 @@ flutter:
   assets:
     - assets/images/
     - assets/event_icons/
+    - img/_Grocery List/
+    - img/_House Project/
+    - img/_Packaging List/
+    - img/_Gift Ideas/
+    - img/_Trip Ideas/
+    - img/_Movies to Watch/
+    - img/_Others/
+    - img/_Profile Images/
 
   # fonts:
   #   - family: Poppins

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import '../../l10n/app_strings.dart';
 import '../../models/event_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/event_provider.dart';
 import '../../providers/category_provider.dart';
+import '../todo/todo_tab_view.dart';
 import '../../widgets/event_icon_avatar.dart';
 import '../../widgets/user_app_bar_title.dart';
 
@@ -59,10 +61,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 72,
-        title: const UserAppBarTitle(title: 'Family Calendar'),
+        title: UserAppBarTitle(title: strings.familyCalendar),
         elevation: 0,
         actions: [
           IconButton(
@@ -120,45 +123,48 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) => setState(() => _selectedIndex = index),
-        destinations: const [
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.calendar_view_month_outlined),
-            selectedIcon: Icon(Icons.calendar_view_month_rounded),
-            label: 'Calendar',
+            icon: const Icon(Icons.calendar_view_month_outlined),
+            selectedIcon: const Icon(Icons.calendar_view_month_rounded),
+            label: strings.calendar,
           ),
           NavigationDestination(
-            icon: Icon(Icons.view_agenda_outlined),
-            selectedIcon: Icon(Icons.view_agenda_rounded),
-            label: 'Agenda',
+            icon: const Icon(Icons.view_agenda_outlined),
+            selectedIcon: const Icon(Icons.view_agenda_rounded),
+            label: strings.events,
           ),
           NavigationDestination(
-            icon: Icon(Icons.task_alt_outlined),
-            selectedIcon: Icon(Icons.task_alt_rounded),
-            label: 'To-Do',
+            icon: const Icon(Icons.task_alt_outlined),
+            selectedIcon: const Icon(Icons.task_alt_rounded),
+            label: strings.todo,
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/event/add'),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: _selectedIndex == 2
+          ? null
+          : FloatingActionButton(
+              onPressed: () => context.go('/event/add'),
+              child: const Icon(Icons.add),
+            ),
     );
   }
 
   Widget _buildCalendarView() {
+    final strings = AppStrings.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.calendar_month, size: 64, color: Colors.grey),
           const SizedBox(height: 16),
-          const Text('Calendar View'),
+          Text(strings.calendarView),
           const SizedBox(height: 24),
           SizedBox(
             width: 220,
             child: ElevatedButton(
               onPressed: () => context.go('/calendar'),
-              child: const Text('Open Calendar'),
+              child: Text(strings.openCalendar),
             ),
           ),
         ],
@@ -167,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAgendaView() {
+    final strings = AppStrings.of(context);
     return Consumer<EventProvider>(
       builder: (context, eventProvider, _) {
         final upcomingEvents = eventProvider.getUpcomingEvents();
@@ -177,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
               child: Text(
-                'Shows events due today or in the future. To view past events, check Calendar view.',
+                strings.agendaDescription,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       height: 1.35,
@@ -186,8 +193,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             Expanded(
               child: upcomingEvents.isEmpty
-                  ? const Center(
-                      child: Text('No upcoming events'),
+                  ? Center(
+                      child: Text(strings.noUpcomingEvents),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -224,26 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTodoView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.checklist, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text('To-Do Lists & Grocery List'),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: 220,
-            child: ElevatedButton(
-              onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Feature coming soon')),
-              ),
-              child: const Text('Manage Lists'),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const TodoTabView();
   }
 
   String _buildAgendaSubtitle(CalendarEvent event) {

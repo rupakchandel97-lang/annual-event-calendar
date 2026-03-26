@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../l10n/app_strings.dart';
 import '../../models/event_icon_assets.dart';
 import '../../models/event_model.dart';
 import '../../providers/auth_provider.dart';
@@ -14,11 +15,17 @@ import '../../widgets/user_app_bar_title.dart';
 class AddEventScreen extends StatefulWidget {
   final DateTime? initialDate;
   final String? eventId;
+  final String? initialTitle;
+  final String? initialNotes;
+  final String? preferredCategoryName;
 
   const AddEventScreen({
     Key? key,
     this.initialDate,
     this.eventId,
+    this.initialTitle,
+    this.initialNotes,
+    this.preferredCategoryName,
   }) : super(key: key);
 
   @override
@@ -77,6 +84,8 @@ class _AddEventScreenState extends State<AddEventScreen> {
     _selectedEndDate = _selectedDate;
     _startTime = null;
     _endTime = null;
+    _titleController.text = widget.initialTitle ?? '';
+    _notesController.text = widget.initialNotes ?? '';
     _iconPathsFuture = EventIconAssets.loadPaths();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -206,6 +215,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
   }
 
   Future<void> _showIconPicker() async {
+    final strings = AppStrings.read(context);
     final iconPaths = await _iconPathsFuture;
     if (!mounted) {
       return;
@@ -224,7 +234,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Choose Event Icon',
+                  strings.chooseEventIcon,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -245,7 +255,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       if (index == 0) {
                         final isSelected = _selectedIconAssetPath == null;
                         return _IconChoiceTile(
-                          label: 'None',
+                          label: strings.none,
                           isSelected: isSelected,
                           onTap: () {
                             setState(() => _selectedIconAssetPath = null);
@@ -326,17 +336,18 @@ class _AddEventScreenState extends State<AddEventScreen> {
   }
 
   String _recurrenceLabel(RecurrenceType value) {
+    final strings = AppStrings.read(context);
     switch (value) {
       case RecurrenceType.none:
-        return 'Does not repeat';
+        return strings.doesNotRepeat;
       case RecurrenceType.daily:
-        return 'Daily';
+        return strings.daily;
       case RecurrenceType.weekly:
-        return 'Weekly';
+        return strings.weekly;
       case RecurrenceType.monthly:
-        return 'Monthly';
+        return strings.monthly;
       case RecurrenceType.yearly:
-        return 'Yearly';
+        return strings.yearly;
     }
   }
 
@@ -355,23 +366,24 @@ class _AddEventScreenState extends State<AddEventScreen> {
   }
 
   Future<void> _saveEvent() async {
+    final strings = AppStrings.read(context);
     if (_titleController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter event title')),
+        SnackBar(content: Text(strings.pleaseEnterEventTitle)),
       );
       return;
     }
 
     if (_selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a category')),
+        SnackBar(content: Text(strings.pleaseSelectCategory)),
       );
       return;
     }
 
     if (_selectedEndDate.isBefore(_selectedDate)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End date cannot be before start date')),
+        SnackBar(content: Text(strings.endDateBeforeStartDate)),
       );
       return;
     }
@@ -381,7 +393,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
         _endTime != null &&
         !_endTime!.isAfter(_startTime!)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End time must be after start time')),
+        SnackBar(content: Text(strings.endTimeBeforeStartTime)),
       );
       return;
     }
@@ -390,18 +402,14 @@ class _AddEventScreenState extends State<AddEventScreen> {
         _recurrenceEndDate != null &&
         _recurrenceEndDate!.isBefore(_selectedDate)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recurrence end date cannot be before the event date'),
-        ),
+        SnackBar(content: Text(strings.recurrenceEndBeforeEventDate)),
       );
       return;
     }
 
     if (_recurrence == RecurrenceType.weekly && _selectedWeekdays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Select at least one weekday for weekly recurrence'),
-        ),
+        SnackBar(content: Text(strings.selectWeeklyRecurrenceDay)),
       );
       return;
     }
@@ -442,7 +450,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Event updated successfully')),
+        SnackBar(content: Text(strings.eventUpdatedSuccessfully)),
       );
       if (context.canPop()) {
         context.pop();
@@ -481,13 +489,18 @@ class _AddEventScreenState extends State<AddEventScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Event added successfully')),
+      SnackBar(content: Text(strings.eventAddedSuccessfully)),
     );
-    context.go('/');
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final palette = AppTheme.of(context);
     final pickerFillColor = palette.vibrantSurfaceAlt.withOpacity(
       palette.isDark ? 0.54 : 0.72,
@@ -515,7 +528,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: _goBack,
         ),
-        title: UserAppBarTitle(title: _isEditing ? 'Edit Event' : 'Add Event'),
+        title: UserAppBarTitle(title: _isEditing ? strings.editEvent : strings.addEvent),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -525,9 +538,9 @@ class _AddEventScreenState extends State<AddEventScreen> {
           children: [
             TextField(
               controller: _titleController,
-              decoration: const InputDecoration(
-                hintText: 'Event Title',
-                prefixIcon: Icon(Icons.event_outlined),
+              decoration: InputDecoration(
+                hintText: strings.eventTitle,
+                prefixIcon: const Icon(Icons.event_outlined),
               ),
             ),
             const SizedBox(height: 16),
@@ -602,14 +615,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
-                  'Spans ${_selectedEndDate.difference(_selectedDate).inDays + 1} days',
+                  strings.spansDays(
+                    _selectedEndDate.difference(_selectedDate).inDays + 1,
+                  ),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                 ),
               ),
             SwitchListTile(
-              title: const Text('All Day'),
+              title: Text(strings.allDay),
               value: _allDay,
               onChanged: (value) => setState(() => _allDay = value),
             ),
@@ -637,13 +652,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
                               color: pickerIconColor,
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              _startTime != null
-                                  ? DateFormat('HH:mm').format(_startTime!)
-                                  : 'Start Time',
-                              style: _startTime != null
-                                  ? pickerTextStyle
-                                  : pickerHintStyle,
+                            Expanded(
+                              child: Text(
+                                _startTime != null
+                                    ? DateFormat('HH:mm').format(_startTime!)
+                                    : strings.startTime,
+                                overflow: TextOverflow.ellipsis,
+                                style: _startTime != null
+                                    ? pickerTextStyle
+                                    : pickerHintStyle,
+                              ),
                             ),
                           ],
                         ),
@@ -671,13 +689,16 @@ class _AddEventScreenState extends State<AddEventScreen> {
                               color: pickerIconColor,
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              _endTime != null
-                                  ? DateFormat('HH:mm').format(_endTime!)
-                                  : 'End Time',
-                              style: _endTime != null
-                                  ? pickerTextStyle
-                                  : pickerHintStyle,
+                            Expanded(
+                              child: Text(
+                                _endTime != null
+                                    ? DateFormat('HH:mm').format(_endTime!)
+                                    : strings.endTime,
+                                overflow: TextOverflow.ellipsis,
+                                style: _endTime != null
+                                    ? pickerTextStyle
+                                    : pickerHintStyle,
+                              ),
                             ),
                           ],
                         ),
@@ -690,9 +711,9 @@ class _AddEventScreenState extends State<AddEventScreen> {
             const SizedBox(height: 16),
             DropdownButtonFormField<RecurrenceType>(
               value: _recurrence,
-              decoration: const InputDecoration(
-                hintText: 'Repeat',
-                prefixIcon: Icon(Icons.repeat),
+              decoration: InputDecoration(
+                hintText: strings.repeat,
+                prefixIcon: const Icon(Icons.repeat),
               ),
               items: RecurrenceType.values
                   .map(
@@ -707,7 +728,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
             if (_recurrence == RecurrenceType.weekly) ...[
               const SizedBox(height: 12),
               Text(
-                'Repeat on',
+                strings.repeatOn,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -767,8 +788,12 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       Expanded(
                         child: Text(
                           _recurrenceEndDate == null
-                              ? 'No recurrence end date'
-                              : 'Repeat until ${DateFormat('MMM d, yyyy').format(_recurrenceEndDate!)}',
+                              ? strings.noRecurrenceEndDate
+                              : strings.repeatUntil(
+                                  DateFormat('MMM d, yyyy').format(
+                                    _recurrenceEndDate!,
+                                  ),
+                                ),
                           style: _recurrenceEndDate == null
                               ? pickerHintStyle
                               : pickerTextStyle,
@@ -776,7 +801,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                       ),
                       if (_recurrenceEndDate != null)
                         IconButton(
-                          tooltip: 'Clear recurrence end date',
+                          tooltip: strings.clearRecurrenceEndDate,
                           onPressed: () => setState(() => _recurrenceEndDate = null),
                           icon: const Icon(Icons.close),
                         ),
@@ -789,14 +814,34 @@ class _AddEventScreenState extends State<AddEventScreen> {
             Consumer<CategoryProvider>(
               builder: (context, categoryProvider, _) {
                 if (categoryProvider.categories.isEmpty) {
-                  return const Text('No categories available');
+                  return Text(strings.noCategoriesAvailable);
+                }
+
+                if (_selectedCategoryId == null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted || _selectedCategoryId != null) {
+                      return;
+                    }
+                    String resolvedCategoryId = categoryProvider.categories.first.id;
+                    final preferredName =
+                        (widget.preferredCategoryName ?? '').trim().toLowerCase();
+                    if (preferredName.isNotEmpty) {
+                      for (final category in categoryProvider.categories) {
+                        if (category.name.trim().toLowerCase() == preferredName) {
+                          resolvedCategoryId = category.id;
+                          break;
+                        }
+                      }
+                    }
+                    setState(() => _selectedCategoryId = resolvedCategoryId);
+                  });
                 }
 
                 return DropdownButtonFormField<String>(
                   value: _selectedCategoryId,
-                  decoration: const InputDecoration(
-                    hintText: 'Select Category',
-                    prefixIcon: Icon(Icons.category_outlined),
+                  decoration: InputDecoration(
+                    hintText: strings.selectCategory,
+                    prefixIcon: const Icon(Icons.category_outlined),
                   ),
                   items: categoryProvider.categories
                       .map(
@@ -847,7 +892,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Event Icon',
+                            strings.eventIcon,
                             style: Theme.of(context)
                                 .textTheme
                                 .titleSmall
@@ -856,7 +901,7 @@ class _AddEventScreenState extends State<AddEventScreen> {
                           const SizedBox(height: 4),
                           Text(
                             _selectedIconAssetPath == null
-                                ? 'Choose a small icon from your event icon library'
+                                ? strings.chooseEventIconHint
                                 : EventIconAssets.labelFor(
                                     _selectedIconAssetPath!,
                                   ),
@@ -874,17 +919,17 @@ class _AddEventScreenState extends State<AddEventScreen> {
             const SizedBox(height: 16),
             TextField(
               controller: _locationController,
-              decoration: const InputDecoration(
-                hintText: 'Location',
-                prefixIcon: Icon(Icons.location_on_outlined),
+              decoration: InputDecoration(
+                hintText: strings.location,
+                prefixIcon: const Icon(Icons.location_on_outlined),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _notesController,
-              decoration: const InputDecoration(
-                hintText: 'Notes',
-                prefixIcon: Icon(Icons.notes_outlined),
+              decoration: InputDecoration(
+                hintText: strings.notesLabel,
+                prefixIcon: const Icon(Icons.notes_outlined),
               ),
               maxLines: 3,
             ),
@@ -894,14 +939,14 @@ class _AddEventScreenState extends State<AddEventScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _goBack,
-                    child: const Text('Cancel'),
+                    child: Text(strings.cancel),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: _saveEvent,
-                    child: Text(_isEditing ? 'Save Changes' : 'Save Event'),
+                    child: Text(_isEditing ? strings.saveChanges : strings.saveEvent),
                   ),
                 ),
               ],

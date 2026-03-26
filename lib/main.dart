@@ -6,7 +6,10 @@ import 'providers/auth_provider.dart';
 import 'providers/event_provider.dart';
 import 'providers/category_provider.dart';
 import 'providers/family_provider.dart';
+import 'providers/household_provider.dart';
+import 'providers/locale_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/todo_provider.dart';
 import 'routes/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -47,17 +50,48 @@ class FamilyCalendarApp extends StatelessWidget {
             return provider;
           },
         ),
+        ChangeNotifierProxyProvider<AuthProvider, LocaleProvider>(
+          create: (_) => LocaleProvider(),
+          update: (_, authProvider, localeProvider) {
+            final provider = localeProvider ?? LocaleProvider();
+            provider.syncWithUserLanguage(authProvider.currentUser?.languageCode);
+            return provider;
+          },
+        ),
         ChangeNotifierProvider(create: (_) => FamilyProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
         ChangeNotifierProvider(create: (_) => EventProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, TodoProvider>(
+          create: (_) => TodoProvider(),
+          update: (_, authProvider, todoProvider) {
+            final provider = todoProvider ?? TodoProvider();
+            provider.syncSession(
+              userId: authProvider.currentUser?.uid,
+              familyId: authProvider.currentUser?.familyId,
+            );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, HouseholdProvider>(
+          create: (_) => HouseholdProvider(),
+          update: (_, authProvider, householdProvider) {
+            final provider = householdProvider ?? HouseholdProvider();
+            provider.syncSession(
+              userId: authProvider.currentUser?.uid,
+              familyId: authProvider.currentUser?.familyId,
+            );
+            return provider;
+          },
+        ),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) {
+      child: Consumer2<ThemeProvider, LocaleProvider>(
+        builder: (context, themeProvider, localeProvider, _) {
           return MaterialApp.router(
             title: 'Family Calendar',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.themeDataFor(themeProvider.themeId),
             themeMode: ThemeMode.light,
+            locale: localeProvider.locale,
             builder: (context, child) {
               return Container(
                 decoration: AppTheme.backgroundDecorationFor(themeProvider.themeId),

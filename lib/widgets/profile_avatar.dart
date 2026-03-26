@@ -16,6 +16,7 @@ class ProfileAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedUrl = _resolveDisplayableUrl(photoUrl);
+    final resolvedAsset = _resolveAssetPath(photoUrl);
     final diameter = radius * 2;
 
     return Container(
@@ -26,10 +27,18 @@ class ProfileAvatar extends StatelessWidget {
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
       ),
       child: ClipOval(
-        child: resolvedUrl == null
+        child: resolvedUrl == null && resolvedAsset == null
             ? _buildFallbackIcon(context)
+            : resolvedAsset != null
+                ? Image.asset(
+                    resolvedAsset,
+                    fit: BoxFit.cover,
+                    width: diameter,
+                    height: diameter,
+                    errorBuilder: (_, __, ___) => _buildFallbackIcon(context),
+                  )
             : CachedNetworkImage(
-                imageUrl: resolvedUrl,
+                imageUrl: resolvedUrl!,
                 fit: BoxFit.cover,
                 width: diameter,
                 height: diameter,
@@ -55,6 +64,14 @@ class ProfileAvatar extends StatelessWidget {
       return trimmedUrl;
     }
 
+    return null;
+  }
+
+  String? _resolveAssetPath(String rawUrl) {
+    final trimmedUrl = rawUrl.trim();
+    if (trimmedUrl.startsWith('img/')) {
+      return trimmedUrl;
+    }
     return null;
   }
 

@@ -7,6 +7,7 @@ class User extends Equatable {
   final String displayName;
   final String photoUrl;
   final String themeId;
+  final String languageCode;
   final String role; // 'admin' or 'member'
   final String? familyId;
   final DateTime createdAt;
@@ -18,6 +19,7 @@ class User extends Equatable {
     required this.displayName,
     this.photoUrl = '',
     this.themeId = 'current_default',
+    this.languageCode = 'en',
     this.role = 'member',
     this.familyId,
     required this.createdAt,
@@ -32,6 +34,7 @@ class User extends Equatable {
       displayName: data['displayName'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
       themeId: data['themeId'] ?? 'current_default',
+      languageCode: data['languageCode'] ?? 'en',
       role: data['role'] ?? 'member',
       familyId: data['familyId'],
       createdAt: data['createdAt']?.toDate() ?? DateTime.now(),
@@ -45,6 +48,7 @@ class User extends Equatable {
       'displayName': displayName,
       'photoUrl': photoUrl,
       'themeId': themeId,
+      'languageCode': languageCode,
       'role': role,
       'familyId': familyId,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -58,6 +62,7 @@ class User extends Equatable {
     String? displayName,
     String? photoUrl,
     String? themeId,
+    String? languageCode,
     String? role,
     String? familyId,
     DateTime? createdAt,
@@ -69,6 +74,7 @@ class User extends Equatable {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       themeId: themeId ?? this.themeId,
+      languageCode: languageCode ?? this.languageCode,
       role: role ?? this.role,
       familyId: familyId ?? this.familyId,
       createdAt: createdAt ?? this.createdAt,
@@ -83,6 +89,7 @@ class User extends Equatable {
         displayName,
         photoUrl,
         themeId,
+        languageCode,
         role,
         familyId,
         createdAt,

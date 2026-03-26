@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../l10n/app_strings.dart';
 import '../providers/auth_provider.dart';
 
 class UserAppBarTitle extends StatelessWidget {
@@ -13,6 +14,7 @@ class UserAppBarTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
         final displayName = authProvider.currentUser?.displayName.trim();
@@ -25,7 +27,7 @@ class UserAppBarTitle extends StatelessWidget {
             Text(title),
             if (hasDisplayName)
               Text(
-                'Logged in: $displayName',
+                strings.loggedInAs(displayName!),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context)
                           .appBarTheme

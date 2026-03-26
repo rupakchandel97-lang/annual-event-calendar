@@ -10,6 +10,12 @@ class AppConstants {
   static const String familiesCollection = 'families';
   static const String eventsCollection = 'events';
   static const String categoriesCollection = 'categories';
+  static const String todoListsCollection = 'todo_lists';
+  static const String todoTasksCollection = 'todo_tasks';
+  static const String shoppingListsCollection = 'shopping_lists';
+  static const String shoppingItemsCollection = 'shopping_items';
+  static const String shoppingHistoryCollection = 'shopping_history';
+  static const String inventoryItemsCollection = 'inventory_items';
 
   // Roles
   static const String roleAdmin = 'admin';
