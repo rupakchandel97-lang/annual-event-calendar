@@ -51,7 +51,8 @@ class AuthProvider extends ChangeNotifier {
         );
         print('DEBUG: User loaded successfully: ${_currentUser?.email}');
       } else {
-        print('DEBUG: User document does not exist in Firestore. Creating a fallback profile.');
+        print(
+            'DEBUG: User document does not exist in Firestore. Creating a fallback profile.');
         final fallbackUser = app_user.User(
           uid: firebaseUser.uid,
           email: firebaseUser.email?.trim().toLowerCase() ?? '',
@@ -122,8 +123,11 @@ class AuthProvider extends ChangeNotifier {
     final mergedData = <String, dynamic>{
       ...legacyData,
       'email': normalizedEmail ?? (legacyData['email'] as String? ?? ''),
-      'photoUrl': firebaseUser.photoURL ?? (legacyData['photoUrl'] as String? ?? ''),
+      'photoUrl':
+          firebaseUser.photoURL ?? (legacyData['photoUrl'] as String? ?? ''),
       'themeId': legacyData['themeId'] ?? 'current_default',
+      'notificationPreferences':
+          legacyData['notificationPreferences'] ?? const <String, dynamic>{},
       'updatedAt': Timestamp.now(),
     };
 
@@ -161,9 +165,11 @@ class AuthProvider extends ChangeNotifier {
           .where('adminId', isEqualTo: legacyUserId)
           .get();
       for (final familyDoc in legacyAdminFamilies.docs) {
-        final memberIds = List<String>.from(familyDoc.data()['memberIds'] ?? []);
+        final memberIds =
+            List<String>.from(familyDoc.data()['memberIds'] ?? []);
         final updatedMemberIds = memberIds
-            .map((memberId) => memberId == legacyUserId ? canonicalUserId : memberId)
+            .map((memberId) =>
+                memberId == legacyUserId ? canonicalUserId : memberId)
             .toSet()
             .toList();
         await familyDoc.reference.update({
@@ -178,9 +184,11 @@ class AuthProvider extends ChangeNotifier {
           .where('memberIds', arrayContains: legacyUserId)
           .get();
       for (final familyDoc in memberFamilies.docs) {
-        final memberIds = List<String>.from(familyDoc.data()['memberIds'] ?? []);
+        final memberIds =
+            List<String>.from(familyDoc.data()['memberIds'] ?? []);
         final updatedMemberIds = memberIds
-            .map((memberId) => memberId == legacyUserId ? canonicalUserId : memberId)
+            .map((memberId) =>
+                memberId == legacyUserId ? canonicalUserId : memberId)
             .toSet()
             .toList();
         await familyDoc.reference.update({
@@ -228,6 +236,7 @@ class AuthProvider extends ChangeNotifier {
         email: normalizedEmail,
         displayName: displayName,
         themeId: 'current_default',
+        notificationPreferences: const app_user.NotificationPreferences(),
         role: 'admin', // First user is admin
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -272,7 +281,7 @@ class AuthProvider extends ChangeNotifier {
       );
 
       print('DEBUG: SignIn successful. UID: ${userCredential.user?.uid}');
-      
+
       // Load user data after successful auth
       if (userCredential.user != null) {
         await _loadUserFromFirestore(userCredential.user!);
@@ -284,7 +293,7 @@ class AuthProvider extends ChangeNotifier {
       }
     } on FirebaseAuthException catch (e) {
       print('DEBUG: FirebaseAuthException: ${e.message}');
-      _errorMessage =  e.message;
+      _errorMessage = e.message;
       notifyListeners();
     } catch (e) {
       print('DEBUG: General Exception: $e');
@@ -292,30 +301,32 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     } finally {
       _isLoading = false;
-      print('DEBUG: signIn finished. isLoading: $_isLoading, currentUser: $_currentUser');
+      print(
+          'DEBUG: signIn finished. isLoading: $_isLoading, currentUser: $_currentUser');
       notifyListeners();
     }
   }
-  
+
   Future<void> _createDefaultFamily(String uid, String displayName) async {
     try {
       final familyId = _firestore.collection('families').doc().id;
-      
+
       // Create family document
       await _firestore.collection('families').doc(familyId).set({
         'name': '${displayName}\'s Family',
         'adminId': uid,
         'memberIds': [uid],
         'pendingInvites': [],
+        'shoppingPlaces': [],
         'createdAt': Timestamp.now(),
         'updatedAt': Timestamp.now(),
       });
-      
+
       // Update user's familyId
       await _firestore.collection('users').doc(uid).update({
         'familyId': familyId,
       });
-      
+
       // Reload user to get updated familyId
       final refreshedUser = _auth.currentUser;
       if (refreshedUser != null) {
@@ -345,7 +356,8 @@ class AuthProvider extends ChangeNotifier {
       return;
     }
 
-    print('DEBUG: User has no pending invite or recoverable family. Creating default family...');
+    print(
+        'DEBUG: User has no pending invite or recoverable family. Creating default family...');
     await _createDefaultFamily(user.uid, user.displayName);
   }
 
@@ -363,14 +375,16 @@ class AuthProvider extends ChangeNotifier {
 
       if (createdEvents.docs.isNotEmpty) {
         eventFamilyId =
-            (createdEvents.docs.first.data()['familyId'] as String? ?? '').trim();
+            (createdEvents.docs.first.data()['familyId'] as String? ?? '')
+                .trim();
         if (eventFamilyId.isEmpty) {
           eventFamilyId = null;
         }
       }
 
       if (eventFamilyId == null) {
-        final allEvents = await _firestore.collection('events').limit(250).get();
+        final allEvents =
+            await _firestore.collection('events').limit(250).get();
         for (final doc in allEvents.docs) {
           final data = doc.data();
           final familyId = (data['familyId'] as String? ?? '').trim();
@@ -446,11 +460,12 @@ class AuthProvider extends ChangeNotifier {
     final normalizedEmail = user.email.trim().toLowerCase();
 
     try {
-      QuerySnapshot<Map<String, dynamic>> memberFamilySnapshot = await _firestore
-          .collection('families')
-          .where('memberIds', arrayContains: user.uid)
-          .limit(1)
-          .get();
+      QuerySnapshot<Map<String, dynamic>> memberFamilySnapshot =
+          await _firestore
+              .collection('families')
+              .where('memberIds', arrayContains: user.uid)
+              .limit(1)
+              .get();
 
       if (memberFamilySnapshot.docs.isEmpty) {
         memberFamilySnapshot = await _firestore
@@ -488,7 +503,8 @@ class AuthProvider extends ChangeNotifier {
       }
 
       if (recoveredFamilyId == null) {
-        final allEvents = await _firestore.collection('events').limit(250).get();
+        final allEvents =
+            await _firestore.collection('events').limit(250).get();
         for (final doc in allEvents.docs) {
           final data = doc.data();
           final familyId = (data['familyId'] as String? ?? '').trim();
@@ -579,7 +595,8 @@ class AuthProvider extends ChangeNotifier {
     final familyDoc = snapshot.docs.first;
     final familyData = familyDoc.data();
     final memberIds = List<String>.from(familyData['memberIds'] ?? []);
-    final pendingInvites = List<String>.from(familyData['pendingInvites'] ?? []);
+    final pendingInvites =
+        List<String>.from(familyData['pendingInvites'] ?? []);
 
     if (!memberIds.contains(user.uid)) {
       memberIds.add(user.uid);
@@ -627,6 +644,7 @@ class AuthProvider extends ChangeNotifier {
     String? photoUrl,
     String? themeId,
     String? languageCode,
+    app_user.NotificationPreferences? notificationPreferences,
   }) async {
     if (_currentUser == null) return false;
 
@@ -636,6 +654,9 @@ class AuthProvider extends ChangeNotifier {
       if (photoUrl != null) updates['photoUrl'] = photoUrl;
       if (themeId != null) updates['themeId'] = themeId;
       if (languageCode != null) updates['languageCode'] = languageCode;
+      if (notificationPreferences != null) {
+        updates['notificationPreferences'] = notificationPreferences.toMap();
+      }
       updates['updatedAt'] = Timestamp.now();
 
       await _firestore
@@ -648,6 +669,8 @@ class AuthProvider extends ChangeNotifier {
         photoUrl: photoUrl ?? _currentUser!.photoUrl,
         themeId: themeId ?? _currentUser!.themeId,
         languageCode: languageCode ?? _currentUser!.languageCode,
+        notificationPreferences:
+            notificationPreferences ?? _currentUser!.notificationPreferences,
       );
       _errorMessage = null;
       notifyListeners();
@@ -682,7 +705,8 @@ class AuthProvider extends ChangeNotifier {
     }
 
     try {
-      final downloadUrl = await _storage.refFromURL(trimmedUrl).getDownloadURL();
+      final downloadUrl =
+          await _storage.refFromURL(trimmedUrl).getDownloadURL();
       await _firestore.collection('users').doc(user.uid).update({
         'photoUrl': downloadUrl,
         'updatedAt': Timestamp.now(),

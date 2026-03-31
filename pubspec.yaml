@@ -27,7 +27,9 @@ dependencies:
   table_calendar: ^3.0.9
 
   # Calendar & Date
-  # flutter_local_notifications: 15.1.1  # TODO: Re-enable after resolving Android API conflict
+  flutter_local_notifications: ^17.2.2
+  timezone: ^0.9.4
+  flutter_timezone: ^4.1.0
 
   # Navigation
   go_router: ^12.0.0

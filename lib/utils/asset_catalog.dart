@@ -175,6 +175,7 @@ class AssetCatalog {
     'img/_Grocery List/naan.png',
     'img/_Grocery List/nachos.png',
     'img/_Grocery List/noodles.png',
+    'img/_Grocery List/No Image.png',
     'img/_Grocery List/nut.png',
     'img/_Grocery List/olive-oil-bottle.png',
     'img/_Grocery List/olive-oil.png',
@@ -342,11 +343,11 @@ class AssetCatalog {
     if (prefix == 'img/Animation Characters/100/') {
       return _avatarAssets;
     }
-    if (prefix == 'img/_Profile Images/') {
-      return _profileImageAssets;
-    }
     if (prefix == 'img/_Grocery List/') {
       return _groceryAssets;
+    }
+    if (prefix == 'img/_Profile Images/') {
+      return _profileImageAssets;
     }
     if (prefix == 'img/_Movies to Watch/') {
       final manifestAssets = await _loadManifestAssets();
@@ -355,7 +356,9 @@ class AssetCatalog {
     }
 
     final manifestAssets = await _loadManifestAssets();
-    final matching = manifestAssets.where((asset) => asset.startsWith(prefix)).toList()
+    final matching = manifestAssets
+        .where((asset) => asset.startsWith(prefix))
+        .toList()
       ..sort();
     if (matching.isNotEmpty) {
       return matching;

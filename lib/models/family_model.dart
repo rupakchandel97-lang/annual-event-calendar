@@ -7,6 +7,7 @@ class Family extends Equatable {
   final String adminId;
   final List<String> memberIds;
   final List<String> pendingInvites;
+  final List<String> shoppingPlaces;
   final String? description;
   final String? photoUrl;
   final DateTime createdAt;
@@ -18,6 +19,7 @@ class Family extends Equatable {
     required this.adminId,
     this.memberIds = const [],
     this.pendingInvites = const [],
+    this.shoppingPlaces = const [],
     this.description,
     this.photoUrl,
     required this.createdAt,
@@ -32,6 +34,7 @@ class Family extends Equatable {
       adminId: data['adminId'] ?? '',
       memberIds: List<String>.from(data['memberIds'] ?? []),
       pendingInvites: List<String>.from(data['pendingInvites'] ?? []),
+      shoppingPlaces: List<String>.from(data['shoppingPlaces'] ?? []),
       description: data['description'],
       photoUrl: data['photoUrl'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -45,6 +48,7 @@ class Family extends Equatable {
       'adminId': adminId,
       'memberIds': memberIds,
       'pendingInvites': pendingInvites,
+      'shoppingPlaces': shoppingPlaces,
       'description': description,
       'photoUrl': photoUrl,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -58,6 +62,7 @@ class Family extends Equatable {
     String? adminId,
     List<String>? memberIds,
     List<String>? pendingInvites,
+    List<String>? shoppingPlaces,
     String? description,
     String? photoUrl,
     DateTime? createdAt,
@@ -69,6 +74,7 @@ class Family extends Equatable {
       adminId: adminId ?? this.adminId,
       memberIds: memberIds ?? this.memberIds,
       pendingInvites: pendingInvites ?? this.pendingInvites,
+      shoppingPlaces: shoppingPlaces ?? this.shoppingPlaces,
       description: description ?? this.description,
       photoUrl: photoUrl ?? this.photoUrl,
       createdAt: createdAt ?? this.createdAt,
@@ -83,6 +89,7 @@ class Family extends Equatable {
         adminId,
         memberIds,
         pendingInvites,
+        shoppingPlaces,
         description,
         photoUrl,
         createdAt,

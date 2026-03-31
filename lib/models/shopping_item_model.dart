@@ -8,8 +8,10 @@ class ShoppingItem extends Equatable {
   final String name;
   final String category;
   final String aisle;
+  final String shoppingPlace;
   final bool checked;
   final int quantity;
+  final int sortOrder;
   final String? note;
   final String createdBy;
   final DateTime createdAt;
@@ -22,8 +24,10 @@ class ShoppingItem extends Equatable {
     required this.name,
     required this.category,
     required this.aisle,
+    this.shoppingPlace = '',
     this.checked = false,
     this.quantity = 1,
+    this.sortOrder = 0,
     this.note,
     required this.createdBy,
     required this.createdAt,
@@ -39,8 +43,10 @@ class ShoppingItem extends Equatable {
       name: data['name'] ?? '',
       category: data['category'] ?? 'Other',
       aisle: data['aisle'] ?? 'General',
+      shoppingPlace: data['shoppingPlace'] ?? '',
       checked: data['checked'] ?? false,
       quantity: data['quantity'] ?? 1,
+      sortOrder: data['sortOrder'] ?? 0,
       note: data['note'],
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -55,8 +61,10 @@ class ShoppingItem extends Equatable {
       'name': name,
       'category': category,
       'aisle': aisle,
+      'shoppingPlace': shoppingPlace,
       'checked': checked,
       'quantity': quantity,
+      'sortOrder': sortOrder,
       'note': note,
       'createdBy': createdBy,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -71,8 +79,10 @@ class ShoppingItem extends Equatable {
     String? name,
     String? category,
     String? aisle,
+    String? shoppingPlace,
     bool? checked,
     int? quantity,
+    int? sortOrder,
     String? note,
     bool clearNote = false,
     String? createdBy,
@@ -86,8 +96,10 @@ class ShoppingItem extends Equatable {
       name: name ?? this.name,
       category: category ?? this.category,
       aisle: aisle ?? this.aisle,
+      shoppingPlace: shoppingPlace ?? this.shoppingPlace,
       checked: checked ?? this.checked,
       quantity: quantity ?? this.quantity,
+      sortOrder: sortOrder ?? this.sortOrder,
       note: clearNote ? null : (note ?? this.note),
       createdBy: createdBy ?? this.createdBy,
       createdAt: createdAt ?? this.createdAt,
@@ -103,8 +115,10 @@ class ShoppingItem extends Equatable {
         name,
         category,
         aisle,
+        shoppingPlace,
         checked,
         quantity,
+        sortOrder,
         note,
         createdBy,
         createdAt,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +15,22 @@ import '../../theme/app_theme.dart';
 import 'household_workspace_view.dart';
 
 enum TodoLayoutMode { compact, detailed }
+
 enum TodoWorkspaceSection { tasks, shopping }
+
+Future<void> _copyTodoLines(
+  BuildContext context,
+  String text,
+  String message,
+) async {
+  await Clipboard.setData(ClipboardData(text: text));
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message)),
+  );
+}
 
 class _TodoListDraft {
   final String title;
@@ -63,7 +79,8 @@ class _TodoListDialogState extends State<_TodoListDialog> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.existing?.title ?? '');
+    _titleController =
+        TextEditingController(text: widget.existing?.title ?? '');
     _descriptionController = TextEditingController(
       text: widget.existing?.description ?? '',
     );
@@ -82,7 +99,9 @@ class _TodoListDialogState extends State<_TodoListDialog> {
     final strings = AppStrings.of(context);
 
     return AlertDialog(
-      title: Text(widget.existing == null ? strings.createListTitle : strings.editListTitle),
+      title: Text(widget.existing == null
+          ? strings.createListTitle
+          : strings.editListTitle),
       contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       content: Form(
@@ -204,12 +223,13 @@ class _TodoTaskDialogState extends State<_TodoTaskDialog> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.existing?.title ?? '');
-    _notesController = TextEditingController(text: widget.existing?.notes ?? '');
+    _titleController =
+        TextEditingController(text: widget.existing?.title ?? '');
+    _notesController =
+        TextEditingController(text: widget.existing?.notes ?? '');
     _selectedDate = widget.existing?.dueDate;
     _selectedStatus = widget.existing?.status ?? TodoTaskStatus.todo;
-    _selectedPriority =
-        widget.existing?.priority ?? TodoTaskPriority.medium;
+    _selectedPriority = widget.existing?.priority ?? TodoTaskPriority.medium;
     _selectedAssignees = widget.existing?.assigneeIds.toSet() ?? <String>{};
   }
 
@@ -228,7 +248,9 @@ class _TodoTaskDialogState extends State<_TodoTaskDialog> {
         : widget.familyMembers;
 
     return AlertDialog(
-      title: Text(widget.existing == null ? strings.addTaskTitle : strings.editTaskTitle),
+      title: Text(widget.existing == null
+          ? strings.addTaskTitle
+          : strings.editTaskTitle),
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
@@ -616,10 +638,10 @@ class _TodoTabViewState extends State<TodoTabView> {
                                     label: Text(strings.newList),
                                     style: FilledButton.styleFrom(
                                       foregroundColor: palette.textPrimary,
-                                      backgroundColor: palette.surfaceAlt
-                                          .withOpacity(
-                                            palette.isDark ? 0.42 : 0.9,
-                                          ),
+                                      backgroundColor:
+                                          palette.surfaceAlt.withOpacity(
+                                        palette.isDark ? 0.42 : 0.9,
+                                      ),
                                       elevation: 0,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 12,
@@ -635,7 +657,8 @@ class _TodoTabViewState extends State<TodoTabView> {
                             const SizedBox(height: 12),
                             _SegmentGroupCard(
                               title: strings.workspace,
-                              child: _CompactSegmentedButton<TodoWorkspaceSection>(
+                              child:
+                                  _CompactSegmentedButton<TodoWorkspaceSection>(
                                 segments: [
                                   ButtonSegment<TodoWorkspaceSection>(
                                     value: TodoWorkspaceSection.tasks,
@@ -644,7 +667,8 @@ class _TodoTabViewState extends State<TodoTabView> {
                                   ),
                                   ButtonSegment<TodoWorkspaceSection>(
                                     value: TodoWorkspaceSection.shopping,
-                                    icon: const Icon(Icons.shopping_cart_outlined),
+                                    icon: const Icon(
+                                        Icons.shopping_cart_outlined),
                                     label: Text(strings.shopping),
                                   ),
                                 ],
@@ -656,7 +680,8 @@ class _TodoTabViewState extends State<TodoTabView> {
                                 },
                               ),
                             ),
-                            if (_workspaceSection == TodoWorkspaceSection.tasks) ...[
+                            if (_workspaceSection ==
+                                TodoWorkspaceSection.tasks) ...[
                               const SizedBox(height: 12),
                               Wrap(
                                 spacing: 10,
@@ -664,7 +689,8 @@ class _TodoTabViewState extends State<TodoTabView> {
                                 children: [
                                   _SegmentGroupCard(
                                     title: strings.scope,
-                                    child: _CompactSegmentedButton<TodoListVisibility>(
+                                    child: _CompactSegmentedButton<
+                                        TodoListVisibility>(
                                       segments: [
                                         ButtonSegment<TodoListVisibility>(
                                           value: TodoListVisibility.private,
@@ -673,7 +699,8 @@ class _TodoTabViewState extends State<TodoTabView> {
                                         ),
                                         ButtonSegment<TodoListVisibility>(
                                           value: TodoListVisibility.shared,
-                                          icon: const Icon(Icons.groups_outlined),
+                                          icon:
+                                              const Icon(Icons.groups_outlined),
                                           label: const Text('Family Lists'),
                                           enabled: hasFamily,
                                         ),
@@ -727,80 +754,92 @@ class _TodoTabViewState extends State<TodoTabView> {
                     )
                   else
                     Expanded(
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                        itemCount: lists.length,
-                        separatorBuilder: (_, __) => Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: palette.vibrantOutline.withOpacity(0.18),
-                        ),
-                        itemBuilder: (context, index) {
-                          final list = lists[index];
-                          final totalTaskCount = todoProvider
-                              .tasksForList(list.id, includeCompleted: true)
-                              .length;
-                          final openTaskCount = todoProvider.incompleteCountForList(
-                            list.id,
-                          );
-                          return _TodoListLandingCard(
-                            list: list,
-                            openCount: openTaskCount,
-                            totalCount: totalTaskCount,
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => _TodoListDetailPage(
-                                    listId: list.id,
-                                    visibility: list.visibility,
-                                    initialLayoutMode: _layoutMode,
-                                    onLayoutModeChanged: (mode) {
-                                      if (mounted) {
-                                        setState(() => _layoutMode = mode);
-                                      }
-                                    },
-                                    onEditList:
-                                        (callbackContext, currentList) =>
-                                            _showListDialog(
-                                      context: callbackContext,
-                                      visibility: currentList.visibility,
-                                      existing: currentList,
-                                    ),
-                                    onDeleteList:
-                                        (callbackContext, currentList) =>
-                                            _confirmDeleteList(
-                                      callbackContext,
-                                      callbackContext.read<TodoProvider>(),
-                                      currentList,
-                                    ),
-                                    onShowTaskDialog: (
-                                      callbackContext,
-                                      currentList,
-                                      existingTask,
-                                    ) =>
-                                        _showTaskDialog(
-                                      context: callbackContext,
-                                      list: currentList,
-                                      familyMembers: callbackContext
-                                          .read<FamilyProvider>()
-                                          .familyMembers,
-                                      currentUser: callbackContext
-                                          .read<AuthProvider>()
-                                          .currentUser,
-                                      existing: existingTask,
-                                    ),
-                                    onDeleteTask: (callbackContext, task) =>
-                                        _confirmDeleteTask(
-                                      callbackContext,
-                                      callbackContext.read<TodoProvider>(),
-                                      task,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                              itemCount: lists.length,
+                              separatorBuilder: (_, __) => Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: palette.vibrantOutline.withOpacity(0.18),
+                              ),
+                              itemBuilder: (context, index) {
+                                final list = lists[index];
+                                final totalTaskCount = todoProvider
+                                    .tasksForList(list.id,
+                                        includeCompleted: true)
+                                    .length;
+                                final openTaskCount =
+                                    todoProvider.incompleteCountForList(
+                                  list.id,
+                                );
+                                return _TodoListLandingCard(
+                                  list: list,
+                                  openCount: openTaskCount,
+                                  totalCount: totalTaskCount,
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => _TodoListDetailPage(
+                                          listId: list.id,
+                                          visibility: list.visibility,
+                                          initialLayoutMode: _layoutMode,
+                                          onLayoutModeChanged: (mode) {
+                                            if (mounted) {
+                                              setState(
+                                                  () => _layoutMode = mode);
+                                            }
+                                          },
+                                          onEditList:
+                                              (callbackContext, currentList) =>
+                                                  _showListDialog(
+                                            context: callbackContext,
+                                            visibility: currentList.visibility,
+                                            existing: currentList,
+                                          ),
+                                          onDeleteList:
+                                              (callbackContext, currentList) =>
+                                                  _confirmDeleteList(
+                                            callbackContext,
+                                            callbackContext
+                                                .read<TodoProvider>(),
+                                            currentList,
+                                          ),
+                                          onShowTaskDialog: (
+                                            callbackContext,
+                                            currentList,
+                                            existingTask,
+                                          ) =>
+                                              _showTaskDialog(
+                                            context: callbackContext,
+                                            list: currentList,
+                                            familyMembers: callbackContext
+                                                .read<FamilyProvider>()
+                                                .familyMembers,
+                                            currentUser: callbackContext
+                                                .read<AuthProvider>()
+                                                .currentUser,
+                                            existing: existingTask,
+                                          ),
+                                          onDeleteTask:
+                                              (callbackContext, task) =>
+                                                  _confirmDeleteTask(
+                                            callbackContext,
+                                            callbackContext
+                                                .read<TodoProvider>(),
+                                            task,
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],
@@ -857,7 +896,7 @@ class _TodoTabViewState extends State<TodoTabView> {
       ),
     );
   }
- 
+
   Future<void> _showTaskDialog({
     required BuildContext context,
     required TodoList list,
@@ -1034,16 +1073,13 @@ class _TodoListDetailPage extends StatefulWidget {
   final TodoLayoutMode initialLayoutMode;
   final ValueChanged<TodoLayoutMode> onLayoutModeChanged;
   final Future<void> Function(BuildContext context, TodoList list) onEditList;
-  final Future<void> Function(BuildContext context, TodoList list)
-      onDeleteList;
+  final Future<void> Function(BuildContext context, TodoList list) onDeleteList;
   final Future<void> Function(
     BuildContext context,
     TodoList list,
     TodoTask? existingTask,
-  )
-      onShowTaskDialog;
-  final Future<void> Function(BuildContext context, TodoTask task)
-      onDeleteTask;
+  ) onShowTaskDialog;
+  final Future<void> Function(BuildContext context, TodoTask task) onDeleteTask;
 
   const _TodoListDetailPage({
     required this.listId,
@@ -1139,6 +1175,14 @@ class _TodoListDetailPageState extends State<_TodoListDetailPage> {
                             list: list,
                             sortOption: _sortOption,
                             showCompleted: _showCompleted,
+                            onCopyPressed: () => _copyTodoLines(
+                              context,
+                              tasks
+                                  .map((task) => task.title.trim())
+                                  .where((title) => title.isNotEmpty)
+                                  .join('\n'),
+                              'Tasks copied',
+                            ),
                             onAddTaskPressed: () =>
                                 widget.onShowTaskDialog(context, list, null),
                             onSortChanged: (value) {
@@ -1147,7 +1191,8 @@ class _TodoListDetailPageState extends State<_TodoListDetailPage> {
                             onShowCompletedChanged: (value) {
                               setState(() => _showCompleted = value);
                             },
-                            onEditPressed: () => widget.onEditList(context, list),
+                            onEditPressed: () =>
+                                widget.onEditList(context, list),
                             onDeletePressed: () async {
                               await widget.onDeleteList(context, list);
                               if (mounted && Navigator.of(context).canPop()) {
@@ -1274,6 +1319,7 @@ class _TodoListHeader extends StatelessWidget {
   final TodoList list;
   final TodoTaskSortOption sortOption;
   final bool showCompleted;
+  final VoidCallback onCopyPressed;
   final VoidCallback onAddTaskPressed;
   final ValueChanged<TodoTaskSortOption> onSortChanged;
   final ValueChanged<bool> onShowCompletedChanged;
@@ -1285,6 +1331,7 @@ class _TodoListHeader extends StatelessWidget {
     required this.list,
     required this.sortOption,
     required this.showCompleted,
+    required this.onCopyPressed,
     required this.onAddTaskPressed,
     required this.onSortChanged,
     required this.onShowCompletedChanged,
@@ -1355,10 +1402,19 @@ class _TodoListHeader extends StatelessWidget {
                 ),
               ),
               IconButton(
+                onPressed: onCopyPressed,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints:
+                    const BoxConstraints.tightFor(width: 32, height: 32),
+                icon: const Icon(Icons.content_copy_outlined),
+              ),
+              IconButton(
                 onPressed: onEditPressed,
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+                constraints:
+                    const BoxConstraints.tightFor(width: 32, height: 32),
                 icon: const Icon(Icons.edit_outlined),
               ),
               IconButton(
@@ -1401,8 +1457,8 @@ class _TodoListHeader extends StatelessWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color:
-                        palette.surfaceAlt.withOpacity(palette.isDark ? 0.3 : 0.55),
+                    color: palette.surfaceAlt
+                        .withOpacity(palette.isDark ? 0.3 : 0.55),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: DropdownButton<TodoTaskSortOption>(
@@ -1522,15 +1578,17 @@ class _TaskCard extends StatelessWidget {
                     children: [
                       Text(
                         task.title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w800,
                               fontSize: 15,
                               decoration: task.isCompleted
                                   ? TextDecoration.lineThrough
                                   : null,
-                              color: task.isCompleted
-                                  ? palette.textMuted
-                                  : null,
+                              color:
+                                  task.isCompleted ? palette.textMuted : null,
                             ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1541,13 +1599,14 @@ class _TaskCard extends StatelessWidget {
                           task.notes!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: palette.textMuted,
-                                decoration: task.isCompleted
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                                height: 1.2,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: palette.textMuted,
+                                    decoration: task.isCompleted
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                    height: 1.2,
+                                  ),
                         ),
                       ],
                     ],
@@ -1590,7 +1649,8 @@ class _TaskCard extends StatelessWidget {
               runSpacing: 6,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(palette.isDark ? 0.2 : 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -1847,7 +1907,6 @@ class _TodoListLandingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = AppTheme.of(context);
-    final markerColor = list.isPrivate ? palette.primary : palette.secondary;
     final strings = AppStrings.of(context);
 
     return Material(
@@ -1859,18 +1918,6 @@ class _TodoListLandingCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
           child: Row(
             children: [
-              Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: markerColor.withOpacity(0.9),
-                    width: 2,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2059,7 +2106,8 @@ class _CompactTaskTile extends StatelessWidget {
         TodoTaskPriority.low => 'Low',
       },
       if (task.dueDate != null) DateFormat('M/d').format(task.dueDate!),
-      if (selectedList.isShared && assignees.isNotEmpty) assignees.first.displayName,
+      if (selectedList.isShared && assignees.isNotEmpty)
+        assignees.first.displayName,
       if (selectedList.isPrivate) 'Private',
     ];
 

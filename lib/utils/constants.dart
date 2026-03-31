@@ -15,6 +15,7 @@ class AppConstants {
   static const String shoppingListsCollection = 'shopping_lists';
   static const String shoppingItemsCollection = 'shopping_items';
   static const String shoppingHistoryCollection = 'shopping_history';
+  static const String grocerySearchItemsCollection = 'grocery_search_items';
   static const String inventoryItemsCollection = 'inventory_items';
 
   // Roles
@@ -66,13 +67,18 @@ class AppConstants {
 
   // Error messages
   static const String errorGeneric = 'An error occurred. Please try again.';
-  static const String errorNetwork = 'Network error. Please check your connection.';
-  static const String errorAuthentication = 'Authentication failed. Please try again.';
+  static const String errorNetwork =
+      'Network error. Please check your connection.';
+  static const String errorAuthentication =
+      'Authentication failed. Please try again.';
   static const String errorInvalidEmail = 'Please enter a valid email address.';
-  static const String errorPasswordTooShort = 'Password must be at least 6 characters.';
-  static const String errorEmailAlreadyInUse = 'This email is already registered.';
+  static const String errorPasswordTooShort =
+      'Password must be at least 6 characters.';
+  static const String errorEmailAlreadyInUse =
+      'This email is already registered.';
   static const String errorWeakPassword = 'Password is too weak.';
-  static const String errorOperationFailed = 'Operation failed. Please try again.';
+  static const String errorOperationFailed =
+      'Operation failed. Please try again.';
 
   // Success messages
   static const String successEventCreated = 'Event created successfully';
@@ -118,7 +124,8 @@ class DurationConstants {
   static const Duration snackBarDuration = Duration(seconds: 2);
   static const Duration toastDuration = Duration(milliseconds: 1500);
   static const Duration dialogAnimationDuration = Duration(milliseconds: 300);
-  static const Duration navigationAnimationDuration = Duration(milliseconds: 250);
+  static const Duration navigationAnimationDuration =
+      Duration(milliseconds: 250);
 }
 
 /// Size constants for UI

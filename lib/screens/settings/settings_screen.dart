@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../l10n/app_strings.dart';
@@ -7,8 +8,12 @@ import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/event_provider.dart';
 import '../../providers/family_provider.dart';
+import '../../providers/household_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../models/user_model.dart' as app_user;
+import '../../services/notification_service.dart';
+import 'manage_grocery_list_dialog.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/asset_catalog.dart';
 import '../../widgets/profile_avatar.dart';
@@ -22,10 +27,404 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  bool _isResettingGroceryCatalog = false;
+
+  String _formatNotificationTime(app_user.NotificationPreferences prefs) {
+    final now = DateTime.now();
+    final dateTime = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      prefs.dailySummaryHour,
+      prefs.dailySummaryMinute,
+    );
+    return DateFormat.jm().format(dateTime);
+  }
+
+  String _notificationSubtitle(app_user.NotificationPreferences prefs) {
+    final enabledCount = [
+      prefs.notifyOnNewFamilyList,
+      prefs.notifyOnNewFamilyTask,
+      prefs.notifyOnTaskAssignedToMe,
+      prefs.notifyDailyMorningSummary,
+    ].where((value) => value).length;
+
+    if (enabledCount == 0) {
+      return 'All notifications are off';
+    }
+
+    if (prefs.notifyDailyMorningSummary) {
+      return '$enabledCount enabled, daily summary at ${_formatNotificationTime(prefs)}';
+    }
+
+    return '$enabledCount enabled';
+  }
+
+  Future<void> _showNotificationSettings(AuthProvider authProvider) async {
+    final currentPrefs = authProvider.currentUser?.notificationPreferences ??
+        const app_user.NotificationPreferences();
+    final palette = AppTheme.of(context);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        var draft = currentPrefs;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Notifications',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Choose which updates you want to receive.',
+                    style: TextStyle(color: palette.textMuted),
+                  ),
+                  const SizedBox(height: 12),
+                  CheckboxListTile(
+                    value: draft.notifyOnNewFamilyList,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text(
+                      'Notify me when a new family list is created',
+                    ),
+                    onChanged: (value) {
+                      setSheetState(() {
+                        draft = draft.copyWith(
+                          notifyOnNewFamilyList: value ?? false,
+                        );
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    value: draft.notifyOnNewFamilyTask,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text(
+                      'Notify me when a new family list task is created',
+                    ),
+                    onChanged: (value) {
+                      setSheetState(() {
+                        draft = draft.copyWith(
+                          notifyOnNewFamilyTask: value ?? false,
+                        );
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    value: draft.notifyOnTaskAssignedToMe,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('Notify me when a task is assigned to me'),
+                    onChanged: (value) {
+                      setSheetState(() {
+                        draft = draft.copyWith(
+                          notifyOnTaskAssignedToMe: value ?? false,
+                        );
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    value: draft.notifyDailyMorningSummary,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text(
+                      'Daily morning summary for events and tasks due today',
+                    ),
+                    onChanged: (value) {
+                      setSheetState(() {
+                        draft = draft.copyWith(
+                          notifyDailyMorningSummary: value ?? false,
+                        );
+                      });
+                    },
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: draft.notifyDailyMorningSummary
+                        ? Padding(
+                            padding: const EdgeInsets.only(left: 16, bottom: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Summary time: ${_formatNotificationTime(draft)}',
+                                  ),
+                                ),
+                                TextButton.icon(
+                                  onPressed: () async {
+                                    final selectedTime = await showTimePicker(
+                                      context: context,
+                                      initialTime: TimeOfDay(
+                                        hour: draft.dailySummaryHour,
+                                        minute: draft.dailySummaryMinute,
+                                      ),
+                                    );
+                                    if (selectedTime == null) {
+                                      return;
+                                    }
+                                    setSheetState(() {
+                                      draft = draft.copyWith(
+                                        dailySummaryHour: selectedTime.hour,
+                                        dailySummaryMinute:
+                                            selectedTime.minute,
+                                      );
+                                    });
+                                  },
+                                  icon: const Icon(Icons.schedule_outlined),
+                                  label: const Text('Set time'),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: () async {
+                        await authProvider.updateProfile(
+                          notificationPreferences: draft,
+                        );
+                        final notificationsEnabled = draft.notifyOnNewFamilyList ||
+                            draft.notifyOnNewFamilyTask ||
+                            draft.notifyOnTaskAssignedToMe ||
+                            draft.notifyDailyMorningSummary;
+                        var confirmationMessage =
+                            'Notification settings updated';
+                        if (notificationsEnabled) {
+                          final didSendTest = await context
+                              .read<NotificationService>()
+                              .sendTestNotification();
+                          if (!didSendTest) {
+                            confirmationMessage =
+                                'Settings saved, but notification permission is still unavailable on this device';
+                          }
+                        }
+                        if (!mounted) {
+                          return;
+                        }
+                        Navigator.pop(sheetContext);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(confirmationMessage),
+                          ),
+                        );
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showShoppingPlacesDialog(FamilyProvider familyProvider) async {
+    final family = familyProvider.currentFamily;
+    final familyId = family?.id;
+    if (familyId == null) {
+      return;
+    }
+
+    final places = List<String>.from(family?.shoppingPlaces ?? const []);
+    final controller = TextEditingController();
+    final palette = AppTheme.of(context);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Shopping Places',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        decoration: const InputDecoration(
+                          labelText: 'Add place',
+                          hintText: 'Walmart, Costco, Target...',
+                        ),
+                        onSubmitted: (_) {
+                          final value = controller.text.trim();
+                          if (value.isEmpty || places.contains(value)) {
+                            return;
+                          }
+                          setSheetState(() {
+                            places.add(value);
+                            controller.clear();
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        final value = controller.text.trim();
+                        if (value.isEmpty || places.contains(value)) {
+                          return;
+                        }
+                        setSheetState(() {
+                          places.add(value);
+                          controller.clear();
+                        });
+                      },
+                      child: const Text('Add'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (places.isEmpty)
+                  Text(
+                    'No shopping places added yet.',
+                    style: TextStyle(color: palette.textMuted),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: places
+                        .map(
+                          (place) => InputChip(
+                            label: Text(place),
+                            onDeleted: () {
+                              setSheetState(() => places.remove(place));
+                            },
+                          ),
+                        )
+                        .toList(),
+                  ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () async {
+                      await familyProvider.updateShoppingPlaces(
+                        familyId: familyId,
+                        shoppingPlaces: places,
+                      );
+                      if (!mounted) return;
+                      Navigator.pop(sheetContext);
+                    },
+                    child: const Text('Save'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _clearLoadedData() {
     context.read<FamilyProvider>().clear();
     context.read<CategoryProvider>().clear();
     context.read<EventProvider>().clear();
+  }
+
+  Future<void> _resetGroceryCatalog(
+    HouseholdProvider householdProvider,
+    bool hasFamily,
+  ) async {
+    if (!hasFamily || _isResettingGroceryCatalog) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Reset Grocery Catalog'),
+            content: const Text(
+              'This will clear the current grocery master list for your family and repopulate it from the bundled import data.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Reset'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    setState(() {
+      _isResettingGroceryCatalog = true;
+    });
+
+    try {
+      await householdProvider.resetImportedGroceryCatalog();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Grocery catalog reset and re-imported'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to reset grocery catalog: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isResettingGroceryCatalog = false;
+        });
+      }
+    }
   }
 
   Future<void> _showBundledAvatarPicker() async {
@@ -75,7 +474,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             content: Text(
                               didUpdate
                                   ? strings.profilePhotoUpdated
-                                  : (context.read<AuthProvider>().errorMessage ??
+                                  : (context
+                                          .read<AuthProvider>()
+                                          .errorMessage ??
                                       strings.unableToSelectImage),
                             ),
                           ),
@@ -87,12 +488,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: AppTheme.of(context).surface.withOpacity(0.84),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: AppTheme.of(context).outline.withOpacity(0.5),
+                            color:
+                                AppTheme.of(context).outline.withOpacity(0.5),
                           ),
                         ),
                         child: Column(
                           children: [
-                            Expanded(child: Image.asset(assetPath, fit: BoxFit.contain)),
+                            Expanded(
+                                child: Image.asset(assetPath,
+                                    fit: BoxFit.contain)),
                             const SizedBox(height: 6),
                             Text(
                               AssetCatalog.labelFromAssetPath(assetPath),
@@ -197,10 +601,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               : theme.outline.withOpacity(0.4),
                         ),
                       ),
-                      tileColor: theme.surface.withOpacity(theme.isDark ? 0.95 : 0.88),
+                      tileColor:
+                          theme.surface.withOpacity(theme.isDark ? 0.95 : 0.88),
                       leading: CircleAvatar(
                         backgroundColor: theme.primary.withOpacity(0.18),
-                        child: Icon(Icons.palette_outlined, color: theme.primary),
+                        child:
+                            Icon(Icons.palette_outlined, color: theme.primary),
                       ),
                       title: Text(
                         theme.name,
@@ -236,16 +642,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = AppStrings.of(context);
-    return Consumer3<AuthProvider, ThemeProvider, LocaleProvider>(
-      builder: (context, authProvider, themeProvider, localeProvider, _) {
+    return Consumer5<AuthProvider, ThemeProvider, LocaleProvider,
+        FamilyProvider, HouseholdProvider>(
+      builder: (context, authProvider, themeProvider, localeProvider,
+          familyProvider, householdProvider, _) {
         final user = authProvider.currentUser;
         final palette = AppTheme.of(context);
+        final notificationPrefs =
+            user?.notificationPreferences ??
+            const app_user.NotificationPreferences();
         return Scaffold(
           appBar: AppBar(
             toolbarHeight: 72,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/'),
             ),
             title: UserAppBarTitle(title: strings.configuration),
           ),
@@ -259,26 +671,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       decoration: BoxDecoration(
                         color: palette.surface.withOpacity(0.82),
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: palette.outline.withOpacity(0.6)),
+                        border:
+                            Border.all(color: palette.outline.withOpacity(0.6)),
                       ),
                       child: Row(
                         children: [
-                          ProfileAvatar(photoUrl: user.photoUrl, radius: 54, iconSize: 52),
+                          ProfileAvatar(
+                              photoUrl: user.photoUrl,
+                              radius: 54,
+                              iconSize: 52),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(user.displayName,
-                                    style: Theme.of(context).textTheme.titleMedium),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium),
                                 Text(user.email,
-                                    style: Theme.of(context).textTheme.bodySmall),
+                                    style:
+                                        Theme.of(context).textTheme.bodySmall),
                                 const SizedBox(height: 10),
                                 Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
-                                    _actionButton(strings.showBundledAvatars, Icons.auto_awesome_outlined, _showBundledAvatarPicker),
+                                    _actionButton(
+                                        strings.showBundledAvatars,
+                                        Icons.auto_awesome_outlined,
+                                        _showBundledAvatarPicker),
                                   ],
                                 ),
                               ],
@@ -298,13 +720,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _ => strings.english,
                         },
                       ),
-                      onTap: () => _showLanguagePicker(authProvider, localeProvider),
+                      onTap: () =>
+                          _showLanguagePicker(authProvider, localeProvider),
                     ),
                     ListTile(
                       leading: const Icon(Icons.brightness_6_outlined),
                       title: Text(strings.theme),
                       subtitle: Text(themeProvider.activeTheme.name),
-                      onTap: () => _showThemePicker(authProvider, themeProvider),
+                      onTap: () =>
+                          _showThemePicker(authProvider, themeProvider),
                     ),
                     ListTile(
                       leading: const Icon(Icons.people_outlined),
@@ -315,6 +739,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       leading: const Icon(Icons.category_outlined),
                       title: Text(strings.categories),
                       onTap: () => context.go('/settings/categories'),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.storefront_outlined),
+                      title: const Text('Shopping Places'),
+                      subtitle: Text(
+                        familyProvider.currentFamily?.shoppingPlaces.isEmpty ??
+                                true
+                            ? 'Add pickup/store locations'
+                            : familyProvider.currentFamily!.shoppingPlaces
+                                .join(', '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: user.familyId == null
+                          ? null
+                          : () => _showShoppingPlacesDialog(familyProvider),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.local_grocery_store_outlined),
+                      title: const Text('Manage Grocery List'),
+                      subtitle: const Text(
+                        'Edit grocery search items and icon matching',
+                      ),
+                      onTap: () => showManageGroceryListDialog(
+                        context,
+                        householdProvider,
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.refresh_outlined),
+                      title: const Text('Reset Grocery Catalog'),
+                      subtitle: Text(
+                        _isResettingGroceryCatalog
+                            ? 'Re-importing grocery master list...'
+                            : 'Clear and repopulate the grocery master list now',
+                      ),
+                      enabled: user.familyId != null && !_isResettingGroceryCatalog,
+                      onTap: user.familyId == null || _isResettingGroceryCatalog
+                          ? null
+                          : () => _resetGroceryCatalog(
+                                householdProvider,
+                                user.familyId != null,
+                              ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.notifications_outlined),
+                      title: const Text('Notifications'),
+                      subtitle: Text(_notificationSubtitle(notificationPrefs)),
+                      onTap: () => _showNotificationSettings(authProvider),
                     ),
                     ListTile(
                       leading: const Icon(Icons.help_outline),
@@ -349,7 +822,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _actionButton(String label, IconData icon, Future<void> Function() onPressed) {
+  Widget _actionButton(
+      String label, IconData icon, Future<void> Function() onPressed) {
     return Builder(
       builder: (context) => OutlinedButton.icon(
         onPressed: () {

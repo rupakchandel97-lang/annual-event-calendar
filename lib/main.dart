@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
@@ -11,6 +12,7 @@ import 'providers/locale_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/todo_provider.dart';
 import 'routes/app_router.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -30,6 +32,8 @@ void main() async {
     // Re-throw any other unexpected errors
     rethrow;
   }
+
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   
   runApp(const FamilyCalendarApp());
 }
@@ -61,6 +65,14 @@ class FamilyCalendarApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FamilyProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
         ChangeNotifierProvider(create: (_) => EventProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, NotificationService>(
+          create: (_) => NotificationService(),
+          update: (_, authProvider, notificationService) {
+            final service = notificationService ?? NotificationService();
+            service.syncSession(authProvider.currentUser);
+            return service;
+          },
+        ),
         ChangeNotifierProxyProvider<AuthProvider, TodoProvider>(
           create: (_) => TodoProvider(),
           update: (_, authProvider, todoProvider) {

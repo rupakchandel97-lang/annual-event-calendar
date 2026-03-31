@@ -88,6 +88,8 @@ android {
 dependencies {
     // Core library desugaring for flutter_local_notifications
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    // Flutter's Android embedding can reference Play Core deferred component types in release builds.
+    implementation("com.google.android.play:core:1.10.3")
 }
 
 flutter {

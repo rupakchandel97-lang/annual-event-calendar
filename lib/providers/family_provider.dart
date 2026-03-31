@@ -39,6 +39,7 @@ class FamilyProvider extends ChangeNotifier {
         name: familyName,
         adminId: adminId,
         memberIds: [adminId],
+        shoppingPlaces: const [],
         description: description,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -87,8 +88,7 @@ class FamilyProvider extends ChangeNotifier {
     try {
       final members = <User>[];
       for (final memberId in _currentFamily!.memberIds) {
-        final doc =
-            await _firestore.collection('users').doc(memberId).get();
+        final doc = await _firestore.collection('users').doc(memberId).get();
         if (doc.exists) {
           members.add(User.fromFirestore(doc));
         }
@@ -113,7 +113,8 @@ class FamilyProvider extends ChangeNotifier {
         return;
       }
 
-      final family = await _firestore.collection('families').doc(familyId).get();
+      final family =
+          await _firestore.collection('families').doc(familyId).get();
       if (!family.exists) {
         _errorMessage = 'Family not found';
         notifyListeners();
@@ -128,7 +129,9 @@ class FamilyProvider extends ChangeNotifier {
           .get();
 
       QueryDocumentSnapshot<Map<String, dynamic>>? existingUserDoc =
-          existingUserQuery.docs.isNotEmpty ? existingUserQuery.docs.first : null;
+          existingUserQuery.docs.isNotEmpty
+              ? existingUserQuery.docs.first
+              : null;
       if (existingUserDoc == null) {
         final allUsers = await _firestore.collection('users').get();
         for (final userDoc in allUsers.docs) {
@@ -150,7 +153,8 @@ class FamilyProvider extends ChangeNotifier {
           return;
         }
 
-        if (existingUser.familyId != null && existingUser.familyId != familyId) {
+        if (existingUser.familyId != null &&
+            existingUser.familyId != familyId) {
           _errorMessage = 'This user already belongs to another family';
           notifyListeners();
           return;
@@ -202,7 +206,8 @@ class FamilyProvider extends ChangeNotifier {
   }) async {
     try {
       _errorMessage = null;
-      final familyDoc = await _firestore.collection('families').doc(familyId).get();
+      final familyDoc =
+          await _firestore.collection('families').doc(familyId).get();
       if (!familyDoc.exists) {
         _errorMessage = 'Family not found';
         notifyListeners();
@@ -236,10 +241,9 @@ class FamilyProvider extends ChangeNotifier {
   }) async {
     try {
       if (_currentFamily != null) {
-        final updatedMembers = _currentFamily!.memberIds
-            .where((id) => id != userId)
-            .toList();
-        
+        final updatedMembers =
+            _currentFamily!.memberIds.where((id) => id != userId).toList();
+
         await _firestore.collection('families').doc(familyId).update({
           'memberIds': updatedMembers,
           'updatedAt': Timestamp.now(),
@@ -273,6 +277,26 @@ class FamilyProvider extends ChangeNotifier {
       if (photoUrl != null) updates['photoUrl'] = photoUrl;
 
       await _firestore.collection('families').doc(familyId).update(updates);
+      await loadFamily(familyId);
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<void> updateShoppingPlaces({
+    required String familyId,
+    required List<String> shoppingPlaces,
+  }) async {
+    try {
+      final normalized = shoppingPlaces
+          .map((place) => place.trim())
+          .where((place) => place.isNotEmpty)
+          .toList();
+      await _firestore.collection('families').doc(familyId).update({
+        'shoppingPlaces': normalized,
+        'updatedAt': Timestamp.now(),
+      });
       await loadFamily(familyId);
     } catch (e) {
       _errorMessage = e.toString();

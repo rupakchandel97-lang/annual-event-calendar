@@ -57,15 +57,17 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
     context.go('/settings');
   }
 
-  void _showAddCategoryDialog() {
-    _nameController.clear();
-    _selectedColor = const Color(0xFF5C6BC0);
+  void _showCategoryDialog({dynamic existing}) {
+    _nameController.text = existing?.name ?? '';
+    _selectedColor = existing != null
+        ? Color(existing.colorValue as int)
+        : const Color(0xFF5C6BC0);
 
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('Add Category'),
+          title: Text(existing == null ? 'Add Category' : 'Edit Category'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -135,7 +137,7 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 if (_nameController.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -145,17 +147,27 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                   return;
                 }
 
-                final familyId = context.read<AuthProvider>().currentUser?.familyId;
+                final familyId =
+                    context.read<AuthProvider>().currentUser?.familyId;
                 if (familyId != null) {
-                  context.read<CategoryProvider>().addCategory(
-                        familyId: familyId,
-                        name: _nameController.text.trim(),
-                        color: _selectedColor,
-                      );
+                  if (existing == null) {
+                    await context.read<CategoryProvider>().addCategory(
+                          familyId: familyId,
+                          name: _nameController.text.trim(),
+                          color: _selectedColor,
+                        );
+                  } else {
+                    await context.read<CategoryProvider>().updateCategory(
+                          categoryId: existing.id as String,
+                          name: _nameController.text.trim(),
+                          color: _selectedColor,
+                        );
+                  }
                 }
+                if (!mounted) return;
                 Navigator.pop(dialogContext);
               },
-              child: const Text('Add'),
+              child: Text(existing == null ? 'Add' : 'Save'),
             ),
           ],
         ),
@@ -207,13 +219,7 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
                     backgroundColor: category.color,
                   ),
                   title: Text(category.name),
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Edit feature coming soon'),
-                      ),
-                    );
-                  },
+                  onTap: () => _showCategoryDialog(existing: category),
                 ),
               );
             },
@@ -221,7 +227,7 @@ class _CategorySettingsScreenState extends State<CategorySettingsScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddCategoryDialog,
+        onPressed: () => _showCategoryDialog(),
         child: const Icon(Icons.add),
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -45,6 +46,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/'),
         ),
+        actions: [
+          Consumer<EventProvider>(
+            builder: (context, eventProvider, _) {
+              final visibleRange = _getVisibleRange();
+              final visibleEvents = eventProvider.getEventsForRange(
+                visibleRange.$1,
+                visibleRange.$2,
+              );
+              final copyText = _buildVisibleEventsClipboardText(visibleEvents);
+
+              return IconButton(
+                onPressed: copyText.isEmpty
+                    ? null
+                    : () => _copyVisibleEvents(context, copyText),
+                icon: const Icon(Icons.content_copy_outlined),
+                tooltip: 'Copy visible events',
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -268,6 +289,83 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final end = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
         return (start, end);
     }
+  }
+
+  Future<void> _copyVisibleEvents(BuildContext context, String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Visible events copied')),
+    );
+  }
+
+  String _buildVisibleEventsClipboardText(List<CalendarEvent> events) {
+    final visibleRange = _getVisibleRange();
+    final sortedEvents = [...events]
+      ..sort((a, b) {
+        final aDate = a.firstOccurrenceInRange(visibleRange.$1, visibleRange.$2) ??
+            a.date;
+        final bDate = b.firstOccurrenceInRange(visibleRange.$1, visibleRange.$2) ??
+            b.date;
+        final dateCompare = aDate.compareTo(bDate);
+        if (dateCompare != 0) {
+          return dateCompare;
+        }
+
+        final aTime = a.startTime;
+        final bTime = b.startTime;
+        if (aTime == null && bTime == null) {
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        }
+        if (aTime == null) {
+          return -1;
+        }
+        if (bTime == null) {
+          return 1;
+        }
+
+        final timeCompare = aTime.compareTo(bTime);
+        if (timeCompare != 0) {
+          return timeCompare;
+        }
+
+        return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      });
+
+    return sortedEvents
+        .map((event) {
+          final occurrenceDate =
+              event.firstOccurrenceInRange(visibleRange.$1, visibleRange.$2) ??
+                  event.date;
+          return [
+            event.title.trim(),
+            DateFormat('MMM d, yyyy').format(occurrenceDate),
+            _formatClipboardTimeLabel(event),
+          ].join('\t');
+        })
+        .where((line) => line.trim().isNotEmpty)
+        .join('\n');
+  }
+
+  String _formatClipboardTimeLabel(CalendarEvent event) {
+    if (event.allDay) {
+      return 'All day';
+    }
+
+    final startTime = event.startTime;
+    final endTime = event.endTime;
+    if (startTime == null) {
+      return '';
+    }
+
+    final formatter = DateFormat('HH:mm');
+    if (endTime == null) {
+      return formatter.format(startTime);
+    }
+
+    return '${formatter.format(startTime)} - ${formatter.format(endTime)}';
   }
 
   DateTime _startOfWeek(DateTime day) {

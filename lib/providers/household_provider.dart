@@ -4,10 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/imported_grocery_catalog.dart';
+import '../models/grocery_search_item_model.dart';
 import '../models/inventory_item_model.dart';
 import '../models/shopping_history_item_model.dart';
 import '../models/shopping_item_model.dart';
 import '../models/shopping_list_model.dart';
+import '../utils/asset_catalog.dart';
 import '../utils/constants.dart';
 
 class HouseholdProvider extends ChangeNotifier {
@@ -16,6 +19,7 @@ class HouseholdProvider extends ChangeNotifier {
   StreamSubscription<QuerySnapshot>? _shoppingListsSubscription;
   StreamSubscription<QuerySnapshot>? _shoppingItemsSubscription;
   StreamSubscription<QuerySnapshot>? _shoppingHistorySubscription;
+  StreamSubscription<QuerySnapshot>? _grocerySearchItemsSubscription;
   StreamSubscription<QuerySnapshot>? _inventorySubscription;
 
   String? _userId;
@@ -25,10 +29,12 @@ class HouseholdProvider extends ChangeNotifier {
   bool _notifyScheduled = false;
   String? _errorMessage;
   bool _seedingDefaults = false;
+  bool _groceryCatalogMigrationInProgress = false;
 
   Map<String, ShoppingList> _shoppingLists = {};
   Map<String, ShoppingItem> _shoppingItems = {};
   Map<String, ShoppingHistoryItem> _historyItems = {};
+  Map<String, GrocerySearchItem> _grocerySearchItems = {};
   Map<String, InventoryItem> _inventoryItems = {};
 
   bool get isLoading => _isLoading;
@@ -49,6 +55,25 @@ class HouseholdProvider extends ChangeNotifier {
       }
       return b.purchaseCount.compareTo(a.purchaseCount);
     });
+  List<GrocerySearchItem> get grocerySearchItems =>
+      _grocerySearchItems.values.toList()
+        ..sort((a, b) {
+          final categoryCompare =
+              a.category.toLowerCase().compareTo(b.category.toLowerCase());
+          if (categoryCompare != 0) {
+            return categoryCompare;
+          }
+          final typeCompare =
+              a.itemType.toLowerCase().compareTo(b.itemType.toLowerCase());
+          if (typeCompare != 0) {
+            return typeCompare;
+          }
+          final orderCompare = a.sortOrder.compareTo(b.sortOrder);
+          if (orderCompare != 0) {
+            return orderCompare;
+          }
+          return a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase());
+        });
   List<InventoryItem> get inventoryItems => _inventoryItems.values.toList()
     ..sort((a, b) {
       final statusWeight = <InventoryStatus, int>{
@@ -83,6 +108,8 @@ class HouseholdProvider extends ChangeNotifier {
     'Household',
   ];
 
+  static const String _importedGroceryCatalogVersion = '2026_03_30_excel_v3';
+
   void syncSession({
     required String? userId,
     required String? familyId,
@@ -107,6 +134,7 @@ class HouseholdProvider extends ChangeNotifier {
     _shoppingLists = {};
     _shoppingItems = {};
     _historyItems = {};
+    _grocerySearchItems = {};
     _inventoryItems = {};
     _isLoading = false;
     _errorMessage = null;
@@ -159,12 +187,14 @@ class HouseholdProvider extends ChangeNotifier {
           .where('familyId', isEqualTo: _familyId)
           .get();
 
-      final existingByKey = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+      final existingByKey =
+          <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
       final batch = _firestore.batch();
       var hasBatchUpdates = false;
       var nextSortOrder = snapshot.docs
-          .map((doc) => (doc.data()['sortOrder'] as int?) ?? 0)
-          .fold<int>(-1, (current, next) => next > current ? next : current) +
+              .map((doc) => (doc.data()['sortOrder'] as int?) ?? 0)
+              .fold<int>(
+                  -1, (current, next) => next > current ? next : current) +
           1;
 
       for (final doc in snapshot.docs) {
@@ -224,6 +254,8 @@ class HouseholdProvider extends ChangeNotifier {
       if (hasBatchUpdates) {
         await batch.commit();
       }
+
+      await _migrateImportedGroceryCatalogIfNeeded();
     } finally {
       _seedingDefaults = false;
     }
@@ -239,9 +271,12 @@ class HouseholdProvider extends ChangeNotifier {
       final protectedTitle = list.isStatic
           ? (_canonicalStaticListTitle(list.title) ?? list.title)
           : title.trim();
-      final protectedShared = list.isStatic ? true : (isShared ?? list.isShared);
+      final protectedShared =
+          list.isStatic ? true : (isShared ?? list.isShared);
       final protectedAisles = list.isStatic
-          ? (protectedTitle == 'Grocery List' ? _groceryAisles : const <String>[])
+          ? (protectedTitle == 'Grocery List'
+              ? _groceryAisles
+              : const <String>[])
           : (aisleNames ?? list.aisleNames);
       final updated = list.copyWith(
         title: protectedTitle,
@@ -267,7 +302,9 @@ class HouseholdProvider extends ChangeNotifier {
       for (var index = 0; index < orderedLists.length; index++) {
         final list = orderedLists[index];
         batch.update(
-          _firestore.collection(AppConstants.shoppingListsCollection).doc(list.id),
+          _firestore
+              .collection(AppConstants.shoppingListsCollection)
+              .doc(list.id),
           {
             'sortOrder': index,
             'updatedAt': Timestamp.now(),
@@ -298,7 +335,9 @@ class HouseholdProvider extends ChangeNotifier {
         batch.delete(doc.reference);
       }
       batch.delete(
-        _firestore.collection(AppConstants.shoppingListsCollection).doc(list.id),
+        _firestore
+            .collection(AppConstants.shoppingListsCollection)
+            .doc(list.id),
       );
       await batch.commit();
       _errorMessage = null;
@@ -314,6 +353,7 @@ class HouseholdProvider extends ChangeNotifier {
     int quantity = 1,
     String? category,
     String? aisle,
+    String? shoppingPlace,
     String? note,
   }) async {
     if (_userId == null || _familyId == null) return;
@@ -329,7 +369,9 @@ class HouseholdProvider extends ChangeNotifier {
         name: name.trim(),
         category: resolvedCategory,
         aisle: resolvedAisle,
+        shoppingPlace: _nullableTrim(shoppingPlace) ?? '',
         quantity: quantity,
+        sortOrder: _nextShoppingItemSortOrder(list.id),
         note: _nullableTrim(note),
         createdBy: _userId!,
         createdAt: DateTime.now(),
@@ -338,6 +380,13 @@ class HouseholdProvider extends ChangeNotifier {
       await doc.set(item.toFirestore());
       await _touchShoppingList(list.id);
       await _upsertHistory(item);
+      if (_isCanonicalGroceryListTitle(list.title)) {
+        await upsertGrocerySearchItem(
+          itemName: item.name,
+          category: item.category,
+          itemType: item.aisle,
+        );
+      }
       _errorMessage = null;
     } catch (e) {
       _errorMessage = e.toString();
@@ -351,6 +400,7 @@ class HouseholdProvider extends ChangeNotifier {
     int? quantity,
     String? category,
     String? aisle,
+    String? shoppingPlace,
     String? note,
     bool? checked,
   }) async {
@@ -361,6 +411,7 @@ class HouseholdProvider extends ChangeNotifier {
         quantity: quantity ?? item.quantity,
         category: _resolveCategory(resolvedName, category ?? item.category),
         aisle: _resolveAisle(resolvedName, aisle ?? item.aisle),
+        shoppingPlace: _nullableTrim(shoppingPlace ?? item.shoppingPlace) ?? '',
         note: _nullableTrim(note ?? item.note),
         clearNote: _nullableTrim(note ?? item.note) == null,
         checked: checked ?? item.checked,
@@ -373,6 +424,14 @@ class HouseholdProvider extends ChangeNotifier {
       await _touchShoppingList(item.listId);
       if (!updated.checked) {
         await _upsertHistory(updated);
+      }
+      final list = _shoppingLists[item.listId];
+      if (list != null && _isCanonicalGroceryListTitle(list.title)) {
+        await upsertGrocerySearchItem(
+          itemName: updated.name,
+          category: updated.category,
+          itemType: updated.aisle,
+        );
       }
       _errorMessage = null;
     } catch (e) {
@@ -442,8 +501,7 @@ class HouseholdProvider extends ChangeNotifier {
         quantityLabel: quantityLabel.trim(),
         locationLabel: locationLabel.trim(),
         status: status,
-        suggestedForShopping:
-            suggestedForShopping ?? item.suggestedForShopping,
+        suggestedForShopping: suggestedForShopping ?? item.suggestedForShopping,
         updatedAt: DateTime.now(),
       );
       await _firestore
@@ -501,17 +559,268 @@ class HouseholdProvider extends ChangeNotifier {
         .where((item) => includeChecked || !item.checked)
         .toList()
       ..sort((a, b) {
-        final checkedCompare = (a.checked ? 1 : 0).compareTo(b.checked ? 1 : 0);
-        if (checkedCompare != 0) {
-          return checkedCompare;
+        final orderCompare = a.sortOrder.compareTo(b.sortOrder);
+        if (orderCompare != 0) {
+          return orderCompare;
         }
-        final aisleCompare = a.aisle.toLowerCase().compareTo(b.aisle.toLowerCase());
+        final aisleCompare =
+            a.aisle.toLowerCase().compareTo(b.aisle.toLowerCase());
         if (aisleCompare != 0) {
           return aisleCompare;
         }
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
     return items;
+  }
+
+  Future<void> ensureDefaultGrocerySearchItems() async {
+    if (_familyId == null || _userId == null) {
+      return;
+    }
+
+    final existing = await _firestore
+        .collection(AppConstants.grocerySearchItemsCollection)
+        .where('familyId', isEqualTo: _familyId)
+        .limit(1)
+        .get();
+    if (existing.docs.isNotEmpty) {
+      return;
+    }
+
+    final iconNames = await groceryIconNames();
+    if (iconNames.isEmpty) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final batch = _firestore.batch();
+    var sortOrder = 0;
+
+    for (final iconName in iconNames) {
+      final normalizedIcon = AssetCatalog.normalizedLookup(iconName);
+      if (normalizedIcon == 'no image' || normalizedIcon == 'not found') {
+        continue;
+      }
+
+      final doc = _firestore
+          .collection(AppConstants.grocerySearchItemsCollection)
+          .doc();
+      final item = GrocerySearchItem(
+        id: doc.id,
+        familyId: _familyId!,
+        category: _resolveCategory(iconName, null),
+        itemType: _resolveAisle(iconName, null),
+        itemName: iconName,
+        iconName: iconName,
+        sortOrder: sortOrder++,
+        createdBy: _userId!,
+        createdAt: now,
+        updatedAt: now,
+      );
+      batch.set(doc, item.toFirestore());
+    }
+
+    await batch.commit();
+  }
+
+  Future<void> upsertGrocerySearchItem({
+    required String itemName,
+    String? category,
+    String? itemType,
+    String? iconName,
+  }) async {
+    if (_familyId == null || _userId == null) {
+      return;
+    }
+
+    final trimmedName = itemName.trim();
+    if (trimmedName.isEmpty) {
+      return;
+    }
+
+    final existing = _findGrocerySearchItemByName(trimmedName);
+    final now = DateTime.now();
+    final resolvedCategory =
+        _nullableTrim(category) ?? _resolveCategory(trimmedName, null);
+    final resolvedItemType =
+        _nullableTrim(itemType) ?? _resolveAisle(trimmedName, null);
+    final resolvedIconName = await resolveGroceryIconName(
+      itemName: trimmedName,
+      preferredIconName: iconName,
+    );
+
+    if (existing != null) {
+      await _firestore
+          .collection(AppConstants.grocerySearchItemsCollection)
+          .doc(existing.id)
+          .update(
+            existing
+                .copyWith(
+                  itemName: trimmedName,
+                  category: resolvedCategory,
+                  itemType: resolvedItemType,
+                  iconName: resolvedIconName,
+                  updatedAt: now,
+                )
+                .toFirestore(),
+          );
+      return;
+    }
+
+    final doc =
+        _firestore.collection(AppConstants.grocerySearchItemsCollection).doc();
+    final item = GrocerySearchItem(
+      id: doc.id,
+      familyId: _familyId!,
+      category: resolvedCategory,
+      itemType: resolvedItemType,
+      itemName: trimmedName,
+      iconName: resolvedIconName,
+      sortOrder: _nextGrocerySearchSortOrder(),
+      createdBy: _userId!,
+      createdAt: now,
+      updatedAt: now,
+    );
+    await doc.set(item.toFirestore());
+  }
+
+  Future<void> replaceGrocerySearchItems(List<GrocerySearchItem> items) async {
+    if (_familyId == null || _userId == null) {
+      return;
+    }
+
+    final operations = <void Function(WriteBatch batch)>[];
+    final keptIds = <String>{};
+    final seenKeys = <String>{};
+    final now = DateTime.now();
+    var sortOrder = 0;
+
+    for (final rawItem in items) {
+      final trimmedName = rawItem.itemName.trim();
+      if (trimmedName.isEmpty) {
+        continue;
+      }
+
+      final dedupeKey = [
+        AssetCatalog.normalizedLookup(rawItem.category),
+        AssetCatalog.normalizedLookup(rawItem.itemType),
+        AssetCatalog.normalizedLookup(trimmedName),
+      ].join('|');
+      if (!seenKeys.add(dedupeKey)) {
+        continue;
+      }
+
+      final doc = rawItem.id.isEmpty
+          ? _firestore
+              .collection(AppConstants.grocerySearchItemsCollection)
+              .doc()
+          : _firestore
+              .collection(AppConstants.grocerySearchItemsCollection)
+              .doc(rawItem.id);
+      keptIds.add(doc.id);
+
+      final item = rawItem.copyWith(
+        id: doc.id,
+        familyId: _familyId!,
+        itemName: trimmedName,
+        category: rawItem.category.trim(),
+        itemType: rawItem.itemType.trim(),
+        iconName: await resolveGroceryIconName(
+          itemName: trimmedName,
+          preferredIconName: rawItem.iconName,
+        ),
+        sortOrder: sortOrder++,
+        createdBy: rawItem.createdBy.isEmpty ? _userId! : rawItem.createdBy,
+        createdAt: rawItem.id.isEmpty ? now : rawItem.createdAt,
+        updatedAt: now,
+      );
+      operations.add((batch) => batch.set(doc, item.toFirestore()));
+    }
+
+    final existingSnapshot = await _firestore
+        .collection(AppConstants.grocerySearchItemsCollection)
+        .where('familyId', isEqualTo: _familyId)
+        .get();
+    for (final existing in existingSnapshot.docs) {
+      if (!keptIds.contains(existing.id)) {
+        operations.add((batch) => batch.delete(existing.reference));
+      }
+    }
+
+    await _commitBatchedWrites(operations);
+  }
+
+  Future<void> resetImportedGroceryCatalog() async {
+    if (_familyId == null || _userId == null) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final migrationKey =
+        'grocery_catalog_migration_${_familyId!}_$_importedGroceryCatalogVersion';
+
+    if (importedGroceryCatalog.isEmpty) {
+      await ensureDefaultGrocerySearchItems();
+      await prefs.setBool(migrationKey, true);
+      return;
+    }
+
+    final now = DateTime.now();
+    final items = importedGroceryCatalog
+        .map(
+          (row) => GrocerySearchItem(
+            id: '',
+            familyId: _familyId!,
+            category: (row['category'] ?? '').trim(),
+            itemType: (row['itemType'] ?? '').trim(),
+            itemName: (row['itemName'] ?? '').trim(),
+            iconName: '',
+            sortOrder: 0,
+            createdBy: _userId!,
+            createdAt: now,
+            updatedAt: now,
+          ),
+        )
+        .toList();
+
+    await replaceGrocerySearchItems(items);
+    await prefs.setBool(migrationKey, true);
+  }
+
+  Future<List<String>> groceryIconNames() async {
+    final assets = await AssetCatalog.listAssets('img/_Grocery List/');
+    final names = assets.map(AssetCatalog.labelFromAssetPath).toSet().toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return names;
+  }
+
+  Future<String> resolveGroceryIconName({
+    required String itemName,
+    String? preferredIconName,
+  }) async {
+    final iconNames = await groceryIconNames();
+    final normalizedPreferred =
+        AssetCatalog.normalizedLookup(preferredIconName ?? '');
+    if (normalizedPreferred.isNotEmpty) {
+      for (final iconName in iconNames) {
+        if (AssetCatalog.normalizedLookup(iconName) == normalizedPreferred) {
+          return iconName;
+        }
+      }
+    }
+
+    final normalizedName = AssetCatalog.normalizedLookup(itemName);
+    for (final iconName in iconNames) {
+      if (AssetCatalog.normalizedLookup(iconName) == normalizedName) {
+        return iconName;
+      }
+    }
+
+    return 'No Image';
+  }
+
+  GrocerySearchItem? grocerySearchItemForName(String itemName) {
+    return _findGrocerySearchItemByName(itemName);
   }
 
   void _startListening() {
@@ -526,7 +835,8 @@ class HouseholdProvider extends ChangeNotifier {
         .snapshots()
         .listen((snapshot) {
       _shoppingLists = {
-        for (final doc in snapshot.docs) doc.id: ShoppingList.fromFirestore(doc),
+        for (final doc in snapshot.docs)
+          doc.id: ShoppingList.fromFirestore(doc),
       };
       _markLoaded();
     }, onError: _handleError);
@@ -537,7 +847,8 @@ class HouseholdProvider extends ChangeNotifier {
         .snapshots()
         .listen((snapshot) {
       _shoppingItems = {
-        for (final doc in snapshot.docs) doc.id: ShoppingItem.fromFirestore(doc),
+        for (final doc in snapshot.docs)
+          doc.id: ShoppingItem.fromFirestore(doc),
       };
       _markLoaded();
     }, onError: _handleError);
@@ -554,13 +865,26 @@ class HouseholdProvider extends ChangeNotifier {
       _markLoaded();
     }, onError: _handleError);
 
+    _grocerySearchItemsSubscription = _firestore
+        .collection(AppConstants.grocerySearchItemsCollection)
+        .where('familyId', isEqualTo: _familyId)
+        .snapshots()
+        .listen((snapshot) {
+      _grocerySearchItems = {
+        for (final doc in snapshot.docs)
+          doc.id: GrocerySearchItem.fromFirestore(doc),
+      };
+      _markLoaded();
+    }, onError: _handleError);
+
     _inventorySubscription = _firestore
         .collection(AppConstants.inventoryItemsCollection)
         .where('familyId', isEqualTo: _familyId)
         .snapshots()
         .listen((snapshot) {
       _inventoryItems = {
-        for (final doc in snapshot.docs) doc.id: InventoryItem.fromFirestore(doc),
+        for (final doc in snapshot.docs)
+          doc.id: InventoryItem.fromFirestore(doc),
       };
       _markLoaded();
     }, onError: _handleError);
@@ -585,9 +909,11 @@ class HouseholdProvider extends ChangeNotifier {
   }
 
   Future<void> _upsertHistory(ShoppingItem item) async {
-    final historyId = '${item.familyId}_${item.name.trim().toLowerCase().replaceAll(' ', '_')}';
-    final ref =
-        _firestore.collection(AppConstants.shoppingHistoryCollection).doc(historyId);
+    final historyId =
+        '${item.familyId}_${item.name.trim().toLowerCase().replaceAll(' ', '_')}';
+    final ref = _firestore
+        .collection(AppConstants.shoppingHistoryCollection)
+        .doc(historyId);
     final existing = await ref.get();
     final purchaseCount = existing.exists
         ? ((existing.data()?['purchaseCount'] as int?) ?? 0) + 1
@@ -651,6 +977,76 @@ class HouseholdProvider extends ChangeNotifier {
     return maxOrder + 1;
   }
 
+  int _nextShoppingItemSortOrder(String listId) {
+    final listItems =
+        _shoppingItems.values.where((item) => item.listId == listId);
+    if (listItems.isEmpty) {
+      return 0;
+    }
+    final maxOrder = listItems
+        .map((item) => item.sortOrder)
+        .fold<int>(0, (current, next) => next > current ? next : current);
+    return maxOrder + 1;
+  }
+
+  int _nextGrocerySearchSortOrder() {
+    if (_grocerySearchItems.isEmpty) {
+      return 0;
+    }
+    final maxOrder = _grocerySearchItems.values
+        .map((item) => item.sortOrder)
+        .fold<int>(0, (current, next) => next > current ? next : current);
+    return maxOrder + 1;
+  }
+
+  Future<void> _migrateImportedGroceryCatalogIfNeeded() async {
+    if (_familyId == null ||
+        _userId == null ||
+        _groceryCatalogMigrationInProgress) {
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final migrationKey =
+        'grocery_catalog_migration_${_familyId!}_$_importedGroceryCatalogVersion';
+    if (prefs.getBool(migrationKey) == true) {
+      return;
+    }
+
+    _groceryCatalogMigrationInProgress = true;
+    try {
+      if (importedGroceryCatalog.isEmpty) {
+        await ensureDefaultGrocerySearchItems();
+        await prefs.setBool(migrationKey, true);
+        return;
+      }
+
+      await resetImportedGroceryCatalog();
+    } finally {
+      _groceryCatalogMigrationInProgress = false;
+    }
+  }
+
+  Future<void> _commitBatchedWrites(
+    List<void Function(WriteBatch batch)> operations,
+  ) async {
+    if (operations.isEmpty) {
+      return;
+    }
+
+    const maxOperationsPerBatch = 400;
+    for (var start = 0; start < operations.length; start += maxOperationsPerBatch) {
+      final batch = _firestore.batch();
+      final end = (start + maxOperationsPerBatch < operations.length)
+          ? start + maxOperationsPerBatch
+          : operations.length;
+      for (var index = start; index < end; index++) {
+        operations[index](batch);
+      }
+      await batch.commit();
+    }
+  }
+
   String? staticListTitleFor(String title) {
     return _canonicalStaticListTitle(title);
   }
@@ -675,7 +1071,8 @@ class HouseholdProvider extends ChangeNotifier {
         .where('familyId', isEqualTo: _familyId)
         .get();
 
-    final groupedDocs = <String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>{};
+    final groupedDocs =
+        <String, List<QueryDocumentSnapshot<Map<String, dynamic>>>>{};
     for (final doc in snapshot.docs) {
       final title = (doc.data()['title'] as String? ?? '').trim();
       final staticTitle = _canonicalStaticListTitle(title);
@@ -697,12 +1094,10 @@ class HouseholdProvider extends ChangeNotifier {
           return aStatic.compareTo(bStatic);
         }
 
-        final aExact = ((aData['title'] as String? ?? '').trim() == staticTitle)
-            ? 0
-            : 1;
-        final bExact = ((bData['title'] as String? ?? '').trim() == staticTitle)
-            ? 0
-            : 1;
+        final aExact =
+            ((aData['title'] as String? ?? '').trim() == staticTitle) ? 0 : 1;
+        final bExact =
+            ((bData['title'] as String? ?? '').trim() == staticTitle) ? 0 : 1;
         if (aExact != bExact) {
           return aExact.compareTo(bExact);
         }
@@ -782,11 +1177,27 @@ class HouseholdProvider extends ChangeNotifier {
     _shoppingListsSubscription?.cancel();
     _shoppingItemsSubscription?.cancel();
     _shoppingHistorySubscription?.cancel();
+    _grocerySearchItemsSubscription?.cancel();
     _inventorySubscription?.cancel();
     _shoppingListsSubscription = null;
     _shoppingItemsSubscription = null;
     _shoppingHistorySubscription = null;
+    _grocerySearchItemsSubscription = null;
     _inventorySubscription = null;
+  }
+
+  GrocerySearchItem? _findGrocerySearchItemByName(String itemName) {
+    final lookup = AssetCatalog.normalizedLookup(itemName);
+    for (final item in _grocerySearchItems.values) {
+      if (AssetCatalog.normalizedLookup(item.itemName) == lookup) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  bool _isCanonicalGroceryListTitle(String title) {
+    return title.trim().toLowerCase() == 'grocery list';
   }
 
   @override
